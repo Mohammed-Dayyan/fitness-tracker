@@ -1,0 +1,267 @@
+@import "tailwindcss";
+
+/*
+ * Three themes, selected with data-theme on <html> (set before first paint by
+ * the inline script in app/layout.tsx; "system" is resolved to light or dark
+ * there, so only these three blocks exist):
+ *
+ *   light   – tinted daylight surfaces with an indigo accent
+ *   dark    – near-black with a sky-blue accent
+ *   aurora  – deep indigo/violet gradient, dark glass cards, cyan→violet→pink accents
+ *
+ * Chart colours come from the validated categorical palette (adjacent-pair
+ * colour-blind and normal-vision separation checked against EACH theme's
+ * surface). The light set sits below 3:1 for aqua/yellow/magenta, so every
+ * coloured mark ships with a visible numeric label. Text always uses the ink
+ * tokens (all ≥ 4.5:1 on the surfaces they appear on, including Aurora's
+ * brightest glow behind a glass card), never a series colour.
+ */
+
+/* ---------- Light (default when nothing is set) ---------- */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --plane: #eef3ff;
+  --plane-bg:
+    radial-gradient(900px 420px at 0% -8%, rgba(99, 102, 241, 0.14), transparent 60%),
+    radial-gradient(800px 420px at 100% 0%, rgba(14, 165, 233, 0.12), transparent 55%),
+    linear-gradient(180deg, #f3f6ff 0%, #f7f3ff 60%, #fdf4fa 100%);
+  --surface: #ffffff;
+  --surface-2: #f0f3fb;
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --muted: #5b6b82;
+  --grid: #e3e8f4;
+  --axis: #c5cde0;
+  --line: rgba(79, 70, 229, 0.14);
+
+  --card-bg: #ffffff;
+  --card-border: rgba(79, 70, 229, 0.14);
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 28px -14px rgba(79, 70, 229, 0.28);
+  --card-blur: 0px;
+  --card-edge: linear-gradient(transparent, transparent);
+
+  --accent: #4f46e5;
+  --accent-2: #0ea5e9;
+  --accent-grad: linear-gradient(135deg, #4f46e5, #7c3aed);
+  --btn-bg: linear-gradient(135deg, #4f46e5, #6d28d9);
+  --btn-ink: #ffffff;
+  --btn-shadow: 0 6px 16px -8px rgba(79, 70, 229, 0.6);
+
+  --hero-bg: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #a21caf 100%);
+  --hero-border: rgba(255, 255, 255, 0.18);
+  --hero-shadow: 0 18px 40px -18px rgba(79, 70, 229, 0.55);
+  --hero-ink: #ffffff;
+  --hero-ink-2: rgba(255, 255, 255, 0.84);
+  --nav-active-bg: rgba(79, 70, 229, 0.1);
+
+  --s-calories: #2a78d6;
+  --s-protein: #eb6834;
+  --s-carbs: #1baf7a;
+  --s-fat: #eda100;
+  --s-fiber: #e87ba4;
+  --s-steps: #6250d6;
+  --s-weight: #008300;
+
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warning: #fab219;
+  --warning-ink: #8a5a00;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --critical-ink: #b42323;
+}
+
+/* ---------- Dark ---------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #070a12;
+  --plane-bg:
+    radial-gradient(900px 480px at 85% -10%, rgba(56, 189, 248, 0.12), transparent 60%),
+    radial-gradient(700px 420px at 0% 0%, rgba(129, 140, 248, 0.1), transparent 55%), #070a12;
+  --surface: #0e131f;
+  --surface-2: #151c2c;
+  --ink: #e8edf7;
+  --ink-2: #b4bed2;
+  --muted: #8c97ad;
+  --grid: #1b2436;
+  --axis: #2a3550;
+  --line: rgba(148, 163, 184, 0.16);
+
+  --card-bg: #0e131f;
+  --card-border: rgba(148, 163, 184, 0.16);
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 30px -16px rgba(0, 0, 0, 0.7);
+  --card-blur: 0px;
+  --card-edge: linear-gradient(transparent, transparent);
+
+  --accent: #38bdf8;
+  --accent-2: #818cf8;
+  --accent-grad: linear-gradient(135deg, #38bdf8, #818cf8);
+  --btn-bg: linear-gradient(135deg, #38bdf8, #60a5fa);
+  --btn-ink: #04121c;
+  --btn-shadow: 0 6px 18px -8px rgba(56, 189, 248, 0.55);
+
+  --hero-bg: linear-gradient(135deg, #0c3a5b 0%, #1b2f7a 55%, #3a1f7c 100%);
+  --hero-border: rgba(125, 211, 252, 0.25);
+  --hero-shadow: 0 18px 40px -20px rgba(56, 189, 248, 0.35);
+  --hero-ink: #f4f8ff;
+  --hero-ink-2: rgba(244, 248, 255, 0.82);
+  --nav-active-bg: rgba(56, 189, 248, 0.14);
+
+  --s-calories: #3987e5;
+  --s-protein: #d95926;
+  --s-carbs: #199e70;
+  --s-fat: #c98500;
+  --s-fiber: #d55181;
+  --s-steps: #9085e9;
+  --s-weight: #2a9d2a;
+
+  --good: #0ca30c;
+  --good-ink: #3cc23c;
+  --warning: #fab219;
+  --warning-ink: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --critical-ink: #ef6b6b;
+}
+
+/* ---------- Aurora ---------- */
+:root[data-theme="aurora"] {
+  color-scheme: dark;
+  --plane: #1a0f4a;
+  --plane-bg:
+    radial-gradient(1000px 600px at 8% -8%, rgba(34, 211, 238, 0.3), transparent 62%),
+    radial-gradient(900px 600px at 100% 4%, rgba(236, 72, 153, 0.28), transparent 58%),
+    radial-gradient(900px 500px at 50% 112%, rgba(124, 58, 237, 0.32), transparent 60%),
+    linear-gradient(160deg, #150d3a 0%, #1d1055 45%, #2a0f5e 100%);
+  /* Opaque surfaces for inputs, table heads and rows that sit inside a glass card. */
+  --surface: #1e1658;
+  --surface-2: #2a2070;
+  --ink: #f5f3ff;
+  --ink-2: #cfc9f5;
+  --muted: #b0a9e6;
+  --grid: #3a2f86;
+  --axis: #52479f;
+  --line: rgba(255, 255, 255, 0.16);
+
+  /* Dark-tinted glass (not white-tinted): keeps text ≥ 5.8:1 even over the brightest glow. */
+  --card-bg: rgba(20, 12, 60, 0.62);
+  --card-border: rgba(196, 181, 253, 0.22);
+  --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 16px 40px -18px rgba(124, 58, 237, 0.55);
+  --card-blur: 14px;
+  /* A thin glowing edge along the top of each glass card. */
+  --card-edge: linear-gradient(90deg, transparent 4%, rgba(34, 211, 238, 0.75) 30%, rgba(244, 114, 182, 0.75) 70%, transparent 96%);
+  --ring-glow: drop-shadow(0 0 7px currentColor);
+
+  --accent: #22d3ee;
+  --accent-2: #f472b6;
+  --accent-grad: linear-gradient(90deg, #22d3ee, #a78bfa 55%, #f472b6);
+  --btn-bg: linear-gradient(135deg, #22d3ee, #a78bfa);
+  --btn-ink: #0b0630;
+  --btn-shadow: 0 8px 22px -8px rgba(167, 139, 250, 0.7);
+
+  --hero-bg:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.42) 0%, rgba(167, 139, 250, 0.44) 50%, rgba(244, 114, 182, 0.42) 100%),
+    linear-gradient(rgba(20, 12, 60, 0.6), rgba(20, 12, 60, 0.6));
+  --hero-border: rgba(196, 181, 253, 0.35);
+  --hero-shadow: 0 0 70px -10px rgba(167, 139, 250, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  --hero-ink: #ffffff;
+  --hero-ink-2: rgba(255, 255, 255, 0.84);
+  --nav-active-bg: rgba(167, 139, 250, 0.2);
+
+  /* The validated dark set (checked on #221a62 and #1e1658). */
+  --s-calories: #3987e5;
+  --s-protein: #d95926;
+  --s-carbs: #199e70;
+  --s-fat: #c98500;
+  --s-fiber: #d55181;
+  --s-steps: #9085e9;
+  --s-weight: #2a9d2a;
+
+  --good: #22c55e;
+  --good-ink: #4ade80;
+  --warning: #fbbf24;
+  --warning-ink: #fbbf24;
+  --serious: #fb923c;
+  --critical: #f0506e;
+  --critical-ink: #fb7185;
+}
+
+@theme inline {
+  --color-plane: var(--plane);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-critical-ink: var(--critical-ink);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Reusable looks, so components never hard-code a theme's colours. */
+@utility card {
+  background: var(--card-edge) top / 100% 1px no-repeat, var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  -webkit-backdrop-filter: blur(var(--card-blur));
+  backdrop-filter: blur(var(--card-blur));
+}
+
+/* Brand-coloured text (gradient in each theme's accent colours). */
+@utility text-gradient {
+  background-image: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility btn-primary {
+  background: var(--btn-bg);
+  color: var(--btn-ink);
+  box-shadow: var(--btn-shadow);
+}
+
+@utility hero {
+  background: var(--hero-bg);
+  color: var(--hero-ink);
+  border: 1px solid var(--hero-border);
+  box-shadow: var(--hero-shadow);
+}
+
+body {
+  background: var(--plane-bg);
+  background-attachment: fixed;
+  background-color: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere (mouse clicks don't show it). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

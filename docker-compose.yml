@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fitness
+      # Read from .env (see .env.example); never hardcoded here.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: fitness
+    ports:
+      # 127.0.0.1 only: the dev database is never exposed on the network.
+      # Change POSTGRES_PORT in .env if 5434 is taken (and update the URLs).
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - fitness_pgdata:/var/lib/postgresql/data
+      # Creates the separate fitness_test database used by Vitest.
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitness -d fitness"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fitness_pgdata:

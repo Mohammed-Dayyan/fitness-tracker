@@ -1,0 +1,268 @@
+// Personal Fitness & Nutrition Tracker schema.
+//
+// Ownership model: every fitness/nutrition record carries `ownerId` and uses a
+// composite primary key (ownerId, id). Record IDs are therefore unique per
+// owner and table, never derived from dates, and child rows (exercise sets)
+// reference their parent through (ownerId, workoutId), so the database itself
+// refuses to attach a set to another owner's workout.
+//
+// Calendar dates are local dates in the owner's configured timezone, stored as
+// Postgres DATE. Daily totals are never stored; they are computed from entries.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Owner {
+  id                String    @id @default(uuid()) @db.Uuid
+  // The application resolves its single configured owner by slug "primary".
+  slug              String    @unique
+  passwordHash      String?
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  profile          Profile?
+  sessions         Session[]
+  targets          TargetSet[]
+  foodEntries      FoodEntry[]
+  workouts         WorkoutSession[]
+  exerciseSets     ExerciseSet[]
+  cardioSessions   CardioSession[]
+  dailyActivities  DailyActivity[]
+  bodyMeasurements BodyMeasurement[]
+  dailyNotes       DailyNote[]
+
+  @@map("owners")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @db.Uuid
+  // SHA-256 of the random token held in the cookie. The token itself is never stored.
+  tokenHash  String   @unique
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  userAgent  String?
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model LoginAttempt {
+  id        BigInt   @id @default(autoincrement())
+  // "ip:<address>" for per-client limits; every attempt is also counted globally.
+  ipKey     String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ipKey, createdAt])
+  @@index([createdAt])
+  @@map("login_attempts")
+}
+
+model Profile {
+  ownerId       String    @id @db.Uuid
+  name          String?
+  sex           String?
+  birthDate     DateTime? @db.Date
+  heightCm      Float?
+  timezone      String    @default("Asia/Kolkata")
+  activityLevel String?
+  goal          String?
+  notes         String?
+  updatedAt     DateTime  @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// Versioned targets: the version in effect on a date is the latest one with
+// effectiveFrom <= that date. Add columns (e.g. waterMl, sleepHours) later.
+model TargetSet {
+  ownerId       String   @db.Uuid
+  id            String
+  effectiveFrom DateTime @db.Date
+  calories      Float?
+  proteinG      Float?
+  carbsG        Float?
+  fatG          Float?
+  fiberG        Float?
+  steps         Int?
+  goalWeightKg  Float?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@unique([ownerId, effectiveFrom])
+  @@map("target_sets")
+}
+
+model FoodEntry {
+  ownerId     String   @db.Uuid
+  id          String
+  date        DateTime @db.Date
+  name        String
+  // Free text: "breakfast", "post-workout meal", "midnight snack", ...
+  meal        String?
+  // Optional local time "HH:MM" used to order the meal timeline.
+  time        String?
+  quantity    Float?
+  unit        String?
+  // "raw" | "cooked" when the weight basis matters.
+  weightBasis String?
+  // Unknown nutrition is NULL, never 0.
+  calories    Float?
+  proteinG    Float?
+  carbsG      Float?
+  fatG        Float?
+  fiberG      Float?
+  source      String?
+  estimated   Boolean?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@index([ownerId, date])
+  @@map("food_entries")
+}
+
+model WorkoutSession {
+  ownerId           String   @db.Uuid
+  id                String
+  date              DateTime @db.Date
+  name              String?
+  startTime         String?
+  durationMin       Float?
+  // Always an estimate; never added to food intake.
+  estimatedCalories Float?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  owner Owner         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  sets  ExerciseSet[]
+
+  @@id([ownerId, id])
+  @@index([ownerId, date])
+  @@map("workout_sessions")
+}
+
+model ExerciseSet {
+  ownerId      String   @db.Uuid
+  id           String
+  workoutId    String
+  // Display name as supplied, e.g. "Bench Press".
+  exerciseName String
+  // Normalised grouping key, e.g. "bench press".
+  exerciseKey  String
+  setNumber    Int
+  reps         Int?
+  // NULL means bodyweight or unknown load.
+  weightKg     Float?
+  rpe          Float?
+  durationS    Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner   Owner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workout WorkoutSession @relation(fields: [ownerId, workoutId], references: [ownerId, id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@index([ownerId, workoutId])
+  @@index([ownerId, exerciseKey])
+  @@map("exercise_sets")
+}
+
+model CardioSession {
+  ownerId           String   @db.Uuid
+  id                String
+  date              DateTime @db.Date
+  activity          String
+  startTime         String?
+  durationMin       Float?
+  distanceKm        Float?
+  avgHeartRate      Int?
+  estimatedCalories Float?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@index([ownerId, date])
+  @@map("cardio_sessions")
+}
+
+// One per date. Add water/sleep columns here in a later migration.
+model DailyActivity {
+  ownerId   String   @db.Uuid
+  id        String
+  date      DateTime @db.Date
+  steps     Int?
+  weightKg  Float?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@unique([ownerId, date])
+  @@map("daily_activity")
+}
+
+model BodyMeasurement {
+  ownerId    String   @db.Uuid
+  id         String
+  date       DateTime @db.Date
+  waistCm    Float?
+  chestCm    Float?
+  hipsCm     Float?
+  neckCm     Float?
+  armCm      Float?
+  thighCm    Float?
+  bodyFatPct Float?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@index([ownerId, date])
+  @@map("body_measurements")
+}
+
+// One per date.
+model DailyNote {
+  ownerId   String   @db.Uuid
+  id        String
+  date      DateTime @db.Date
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, id])
+  @@unique([ownerId, date])
+  @@map("daily_notes")
+}
