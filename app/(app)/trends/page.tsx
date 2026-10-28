@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Beef, CalendarRange, Dumbbell, Flame, Footprints, Scale, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { Beef, CalendarRange, Flame, Footprints, Scale } from "lucide-react";
 import { TargetBarChart } from "@/components/charts/target-bar-chart";
 import { WeightChart } from "@/components/charts/weight-chart";
 import { SERIES } from "@/components/dashboard";
-import { Card, EmptyState, PageHeader, PageSkeleton, StatTile } from "@/components/ui";
+import { Card, EmptyState, KpiStrip, PageHeader, PageSkeleton, SEG_ITEM, Segmented, StatTile } from "@/components/ui";
 import { requireOwner } from "@/lib/server/auth/current-owner";
 import { getDayContext } from "@/lib/server/day";
 import { DayWatcher } from "@/components/day-watcher";
@@ -46,28 +46,28 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
     `${what} on ${n} of ${a.days} days. Days without data are left empty, never drawn as zero.`;
   const change = t.weight.trend_change_kg;
 
-  const presetClass = "rounded-lg px-3 py-1.5 text-sm font-medium aria-[current=true]:btn-primary text-ink-2 hover:bg-surface-2";
-
   return (
     <div className="space-y-6">
       <DayWatcher today={today} msUntilNextDay={ctx.msUntilNextDay} />
       <PageHeader title="Trends" subtitle={`${fmtDateShort(range.from)} – ${fmtDateShort(range.to)} · ${a.days} days`} />
 
       {/* Filters: one row above the charts. */}
-      <div className="flex flex-wrap items-center gap-2 card rounded-2xl p-2">
-        {PRESETS.map((p) => (
-          <Link key={p.key} href={`/trends?range=${p.key}`} aria-current={range.key === p.key} className={presetClass}>
-            {p.label}
-          </Link>
-        ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented label="Date range">
+          {PRESETS.map((p) => (
+            <Link key={p.key} href={`/trends?range=${p.key}`} aria-current={range.key === p.key ? "true" : undefined} className={SEG_ITEM}>
+              {p.label}
+            </Link>
+          ))}
+        </Segmented>
         <form action="/trends" method="get" className="ml-auto flex flex-wrap items-center gap-2">
           <input type="hidden" name="range" value="custom" />
           <label className="sr-only" htmlFor="from">From</label>
-          <input id="from" name="from" type="date" defaultValue={range.from} required className="h-8 rounded-lg border border-line bg-surface px-2 text-sm text-ink" />
+          <input id="from" name="from" type="date" defaultValue={range.from} required className="h-9 rounded-[10px] border border-line bg-surface px-2 text-sm text-ink" />
           <span className="text-sm text-ink-2">to</span>
           <label className="sr-only" htmlFor="to">To</label>
-          <input id="to" name="to" type="date" defaultValue={range.to} required className="h-8 rounded-lg border border-line bg-surface px-2 text-sm text-ink" />
-          <button type="submit" aria-current={range.key === "custom"} className={`${presetClass} border border-line`}>
+          <input id="to" name="to" type="date" defaultValue={range.to} required className="h-9 rounded-[10px] border border-line bg-surface px-2 text-sm text-ink" />
+          <button type="submit" aria-current={range.key === "custom" ? "true" : undefined} className={`${SEG_ITEM} h-9 bg-surface-2`}>
             Apply
           </button>
         </form>
@@ -83,21 +83,21 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="Avg calories" icon={Flame} value={a.avg_calories.value == null ? "–" : fmtNumber(a.avg_calories.value)} sub={`over ${a.avg_calories.days} day${a.avg_calories.days === 1 ? "" : "s"} with exact calories (${a.days_logged} with food)`} />
-        <StatTile label="Avg protein" icon={Beef} value={a.avg_protein_g.value == null ? "–" : `${fmtNumber(a.avg_protein_g.value)} g`} sub={`over ${a.avg_protein_g.days} day${a.avg_protein_g.days === 1 ? "" : "s"} with exact protein`} />
-        <StatTile label="Calories on target" icon={Target} value={pct(a.calorie.on_target, a.calorie.evaluated)} sub={`${a.calorie.on_target} of ${a.calorie.evaluated} days with exact calories and a target, within ±10%`} />
-        <StatTile label="Protein goal hit" icon={Target} value={pct(a.protein.hit, a.protein.evaluated)} sub={`${a.protein.hit} of ${a.protein.evaluated} days with exact protein and a target, at ≥90%`} />
-        <StatTile label="Steps goal hit" icon={Footprints} value={pct(a.steps.hit, a.steps.evaluated)} sub={`${a.steps.hit} of ${a.steps.evaluated} days with steps and a goal, at ≥90%`} />
-        <StatTile label="Training sessions" icon={Dumbbell} value={a.workouts + a.cardio_sessions} sub={`${a.workouts} workouts · ${a.cardio_sessions} cardio`} />
+      <KpiStrip className="grid-cols-2 lg:grid-cols-4">
+        <StatTile label="Avg calories" value={a.avg_calories.value == null ? "–" : fmtNumber(a.avg_calories.value)} sub={`over ${a.avg_calories.days} day${a.avg_calories.days === 1 ? "" : "s"} with exact calories (${a.days_logged} with food)`} />
+        <StatTile label="Avg protein" value={a.avg_protein_g.value == null ? "–" : `${fmtNumber(a.avg_protein_g.value)} g`} sub={`over ${a.avg_protein_g.days} day${a.avg_protein_g.days === 1 ? "" : "s"} with exact protein`} />
+        <StatTile label="Calories on target" value={pct(a.calorie.on_target, a.calorie.evaluated)} sub={`${a.calorie.on_target} of ${a.calorie.evaluated} days with exact calories and a target, within ±10%`} />
+        <StatTile label="Protein goal hit" value={pct(a.protein.hit, a.protein.evaluated)} sub={`${a.protein.hit} of ${a.protein.evaluated} days with exact protein and a target, at ≥90%`} />
+        <StatTile label="Steps goal hit" value={pct(a.steps.hit, a.steps.evaluated)} sub={`${a.steps.hit} of ${a.steps.evaluated} days with steps and a goal, at ≥90%`} />
+        <StatTile label="Training sessions" value={a.workouts + a.cardio_sessions} sub={`${a.workouts} workouts · ${a.cardio_sessions} cardio`} />
         <StatTile
           label="Weight trend"
-          icon={change != null && change > 0 ? TrendingUp : TrendingDown}
+         
           value={change == null ? "–" : `${change > 0 ? "+" : ""}${fmtNumber(change, 1)} kg`}
           sub={change == null ? `needs 2+ weigh-ins (${t.weight.weigh_ins} in range)` : `7-day average, ${t.weight.weigh_ins} weigh-ins`}
         />
-        <StatTile label="Latest weight" icon={Scale} value={t.weight.last ? `${fmtNumber(t.weight.last.kg, 1)} kg` : "–"} sub={t.weight.last ? fmtDateShort(t.weight.last.date) : "no weigh-ins in range"} />
-      </div>
+        <StatTile label="Latest weight" value={t.weight.last ? `${fmtNumber(t.weight.last.kg, 1)} kg` : "–"} sub={t.weight.last ? fmtDateShort(t.weight.last.date) : "no weigh-ins in range"} />
+      </KpiStrip>
       <p className="text-xs text-ink-2">
         Each nutrient is judged only on days where that nutrient is fully known and a target exists; a day missing one
         nutrient (say fiber) still counts for the others. Unknown days are excluded rather than guessed, and every figure
@@ -113,7 +113,7 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Calories vs target" icon={Flame}>
+            <Card title="Calories vs target">
               {foodDays < 2 ? (
                 <EmptyState icon={Flame} title={foodDays ? "Only 1 day with food in this range" : "No food logged in this range"}>
                   A chart needs at least two days. See the day itself on Today or History.
@@ -122,21 +122,21 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
                 <TargetBarChart summary={coverage(foodDays, "Food logged")} color={SERIES.calories} label="Calories" unit="kcal" data={t.days.map((d) => ({ date: d.date, value: d.calories, target: d.calorie_target, partial: d.logged && !d.nutrient_complete.calories }))} />
               )}
             </Card>
-            <Card title="Protein vs target" icon={Beef}>
+            <Card title="Protein vs target">
               {foodDays < 2 ? (
                 <EmptyState icon={Beef} title={foodDays ? "Only 1 day with food in this range" : "No food logged in this range"} />
               ) : (
                 <TargetBarChart summary={coverage(foodDays, "Food logged")} color={SERIES.protein_g} label="Protein" unit="g" data={t.days.map((d) => ({ date: d.date, value: d.protein_g, target: d.protein_target, partial: d.logged && !d.nutrient_complete.protein_g }))} />
               )}
             </Card>
-            <Card title="Steps vs goal" icon={Footprints}>
+            <Card title="Steps vs goal">
               {stepDays < 2 ? (
                 <EmptyState icon={Footprints} title={stepDays ? "Only 1 day with steps in this range" : "No steps recorded in this range"} />
               ) : (
                 <TargetBarChart summary={coverage(stepDays, "Steps recorded")} color={SERIES.steps} label="Steps" unit="" data={t.days.map((d) => ({ date: d.date, value: d.steps, target: d.steps_target }))} />
               )}
             </Card>
-            <Card title="Body weight" icon={Scale}>
+            <Card title="Body weight">
               {t.weight.weigh_ins >= 2 ? (
                 <WeightChart
                   summary={`${t.weight.weigh_ins} weigh-ins in ${a.days} days. The line is the average of weigh-ins in the previous 7 days.`}
@@ -150,7 +150,7 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
             </Card>
           </div>
 
-          <Card title="Weekly averages" icon={CalendarRange}>
+          <Card title="Weekly averages">
             <p className="mb-2 text-xs text-ink-2">
               Weeks run Monday to Sunday and show only the dates inside your range. (Nd) is how many days each average covers:
               only days where that nutrient is fully known.

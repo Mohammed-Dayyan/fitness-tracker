@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Footprints, Loader2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui";
 
 type Status = { kind: "idle" } | { kind: "saving" } | { kind: "ok"; message: string } | { kind: "error"; message: string };
@@ -12,7 +12,7 @@ type Status = { kind: "idle" } | { kind: "saving" } | { kind: "ok"; message: str
  * with key={date} so navigating to another day never carries a typed value or
  * a message over to it.
  */
-export function StepsQuickLog({ date, today, current }: { date: string; today: string; current: number | null }) {
+export function StepsQuickLog({ date, today, current, embedded = false }: { date: string; today: string; current: number | null; embedded?: boolean }) {
   const router = useRouter();
   const [steps, setSteps] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -43,8 +43,8 @@ export function StepsQuickLog({ date, today, current }: { date: string; today: s
     }
   }
 
-  return (
-    <Card title="Log steps" icon={Footprints}>
+  const body = (
+    <>
       {future ? (
         <p className="text-sm text-ink-2">Steps can&apos;t be logged for a day that hasn&apos;t happened yet.</p>
       ) : (
@@ -91,6 +91,9 @@ export function StepsQuickLog({ date, today, current }: { date: string; today: s
           )}
         </form>
       )}
-    </Card>
+    </>
   );
+  // Embedded: lives inside another panel (Today's activity panel), under a quiet divider.
+  if (embedded) return <div className="border-t border-line pt-4">{body}</div>;
+  return <Card title="Log steps">{body}</Card>;
 }

@@ -18,7 +18,7 @@ const MARKS: Record<CheckStatus, { symbol: string; spoken: string; tone: string 
 
 const SHORT: Record<Check["key"], string> = { calories: "Cal", protein_g: "Pro", carbs_g: "Carb", fat_g: "Fat", fiber_g: "Fib", steps: "Steps" };
 
-export function StatusStrip({ checks, onHero = false }: { checks: Check[]; onHero?: boolean }) {
+export function StatusStrip({ checks }: { checks: Check[] }) {
   if (checks.length === 0) return null;
   return (
     <ul aria-label="Measures against targets" className="flex flex-wrap gap-1">
@@ -28,7 +28,7 @@ export function StatusStrip({ checks, onHero = false }: { checks: Check[]; onHer
           <li
             key={c.key}
             title={`${c.label}: ${m.spoken}`}
-            className={`tabular inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ${onHero ? "bg-white/15 text-[var(--hero-ink)] ring-1 ring-white/25" : m.tone}`}
+            className={`tabular inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ${m.tone}`}
           >
             <span className="sr-only">
               {c.label}: {m.spoken}

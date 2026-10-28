@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Clock, Dumbbell, HeartPulse, Medal, Repeat, Route, Trophy, Weight } from "lucide-react";
+import { ArrowLeft, Dumbbell, HeartPulse, Medal } from "lucide-react";
 import { InfoHint, RM_HINT } from "@/components/info-hint";
-import { Badge, Card, EmptyState, PageHeader, PageSkeleton, StatTile } from "@/components/ui";
+import { Badge, Card, EmptyState, KpiStrip, PageHeader, PageSkeleton, SEG_ITEM, Segmented, StatTile } from "@/components/ui";
 import { requireOwner } from "@/lib/server/auth/current-owner";
 import { prisma } from "@/lib/server/db";
 import { buildCardioStats, cardioSessionsFor, fmtPace, getCardioRows, paceMinPerKm } from "@/lib/server/cardio";
@@ -18,20 +18,16 @@ const first = (v: string | string[] | undefined) => (typeof v === "string" ? v :
 /** Strength | Cardio switch: plain links, so it works without JavaScript and can be shared. */
 function ModeSwitch({ mode }: { mode: "strength" | "cardio" }) {
   const item = (m: "strength" | "cardio", label: string, Icon: typeof Dumbbell) => (
-    <Link
-      href={m === "strength" ? "/exercises" : "/exercises?mode=cardio"}
-      aria-current={mode === m ? "page" : undefined}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium ${mode === m ? "btn-primary" : "text-ink-2 hover:text-ink"}`}
-    >
+    <Link href={m === "strength" ? "/exercises" : "/exercises?mode=cardio"} aria-current={mode === m ? "page" : undefined} className={SEG_ITEM}>
       <Icon aria-hidden className="size-4" />
       {label}
     </Link>
   );
   return (
-    <nav aria-label="Exercise type" className="card inline-flex gap-1 rounded-xl p-1">
+    <Segmented label="Exercise type">
       {item("strength", "Strength", Dumbbell)}
       {item("cardio", "Cardio", HeartPulse)}
-    </nav>
+    </Segmented>
   );
 }
 
@@ -48,15 +44,15 @@ function PrSummary({ prs }: { prs: PersonalRecords }) {
     <dl className="tabular grid grid-cols-3 gap-2 text-xs">
       <div>
         <dt className="text-ink-2">Max weight</dt>
-        <dd className="text-sm font-semibold text-ink">{prs.max_weight ? `${fmtNumber(prs.max_weight.kg, 1)} kg` : "–"}</dd>
+        <dd className="font-display text-lg font-semibold text-ink">{prs.max_weight ? `${fmtNumber(prs.max_weight.kg, 1)} kg` : "–"}</dd>
       </div>
       <div>
         <dt className="text-ink-2">Est. 1RM</dt>
-        <dd className="text-sm font-semibold text-ink">{prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.kg, 1)} kg` : "–"}</dd>
+        <dd className="font-display text-lg font-semibold text-ink">{prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.kg, 1)} kg` : "–"}</dd>
       </div>
       <div>
         <dt className="text-ink-2">Max reps</dt>
-        <dd className="text-sm font-semibold text-ink">{prs.max_reps ? prs.max_reps.reps : "–"}</dd>
+        <dd className="font-display text-lg font-semibold text-ink">{prs.max_reps ? prs.max_reps.reps : "–"}</dd>
       </div>
     </dl>
   );
@@ -89,13 +85,13 @@ async function Exercises({ searchParams }: { searchParams: PageProps<"/exercises
     return (
       <div className="space-y-6">
         <BackLink />
-        <PageHeader title={stats.name} subtitle={`${stats.sessions} sessions · ${stats.sets} sets · last ${fmtDateMedium(stats.last_date)}`} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatTile label="Max weight" icon={Weight} value={prs.max_weight ? `${fmtNumber(prs.max_weight.kg, 1)} kg` : "–"} sub={prs.max_weight ? `${prs.max_weight.reps} reps · ${fmtDateShort(prs.max_weight.date)}` : "no loaded sets"} />
-          <StatTile label={<>Best estimated 1RM<InfoHint label="estimated 1RM">{RM_HINT}</InfoHint></>} icon={Trophy} value={prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.kg, 1)} kg` : "–"} sub={prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.weight_kg, 1)} kg × ${prs.best_e1rm.reps} · ${fmtDateShort(prs.best_e1rm.date)}` : "needs a loaded set of 1–12 reps"} />
-          <StatTile label="Max reps" icon={Repeat} value={prs.max_reps ? prs.max_reps.reps : "–"} sub={prs.max_reps ? `${prs.max_reps.weight_kg == null ? "bodyweight" : `${fmtNumber(prs.max_reps.weight_kg, 1)} kg`} · ${fmtDateShort(prs.max_reps.date)}` : undefined} />
-        </div>
-                <Card title="Sessions" icon={Dumbbell}>
+        <PageHeader title={stats.name} subtitle={`${stats.sessions} ${stats.sessions === 1 ? "session" : "sessions"} · ${stats.sets} sets · last ${fmtDateMedium(stats.last_date)}`} />
+        <KpiStrip className="grid-cols-1 sm:grid-cols-3">
+          <StatTile label="Max weight" value={prs.max_weight ? `${fmtNumber(prs.max_weight.kg, 1)} kg` : "–"} sub={prs.max_weight ? `${prs.max_weight.reps} reps · ${fmtDateShort(prs.max_weight.date)}` : "no loaded sets"} />
+          <StatTile label={<>Best estimated 1RM<InfoHint label="estimated 1RM">{RM_HINT}</InfoHint></>} value={prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.kg, 1)} kg` : "–"} sub={prs.best_e1rm ? `${fmtNumber(prs.best_e1rm.weight_kg, 1)} kg × ${prs.best_e1rm.reps} · ${fmtDateShort(prs.best_e1rm.date)}` : "needs a loaded set of 1–12 reps"} />
+          <StatTile label="Max reps" value={prs.max_reps ? prs.max_reps.reps : "–"} sub={prs.max_reps ? `${prs.max_reps.weight_kg == null ? "bodyweight" : `${fmtNumber(prs.max_reps.weight_kg, 1)} kg`} · ${fmtDateShort(prs.max_reps.date)}` : undefined} />
+        </KpiStrip>
+                <Card title="Sessions">
           <ul className="divide-y divide-line">
             {sessions.map((s) => (
               <li key={s.workout_id} className="py-3">
@@ -140,7 +136,7 @@ async function Exercises({ searchParams }: { searchParams: PageProps<"/exercises
       <PageHeader title="Exercises" subtitle="Personal records and history, grouped by exercise name" />
       <ModeSwitch mode="strength" />
       <p className="text-xs text-ink-2">
-        Est. 1RM<InfoHint label="Est. 1RM">{RM_HINT}</InfoHint> is shown on every card below.
+        Est. 1RM<InfoHint label="Est. 1RM">{RM_HINT}</InfoHint> = estimated one-rep max.
       </p>
       {stats.length === 0 ? (
         <Card>
@@ -164,7 +160,7 @@ async function Exercises({ searchParams }: { searchParams: PageProps<"/exercises
               <Link href={`/exercises?exercise=${encodeURIComponent(s.key)}`} className="block card rounded-2xl p-4 hover:bg-surface-2">
                 <p className="font-semibold text-ink">{s.name}</p>
                 <p className="mb-3 text-xs text-ink-2">
-                  {s.sessions} sessions · last {fmtDateShort(s.last_date)}
+                  {s.sessions} {s.sessions === 1 ? "session" : "sessions"} · last {fmtDateShort(s.last_date)}
                 </p>
                 <PrSummary prs={s.prs} />
               </Link>
@@ -196,9 +192,9 @@ async function Cardio({ ownerId, activity }: { ownerId: string; activity: string
     return (
       <div className="space-y-6">
         <BackLink cardio />
-        <PageHeader title={stats.name} subtitle={`${stats.sessions} sessions · last ${fmtDateMedium(stats.last_date)}`} />
+        <PageHeader title={stats.name} subtitle={`${stats.sessions} ${stats.sessions === 1 ? "session" : "sessions"} · last ${fmtDateMedium(stats.last_date)}`} />
         <CardioTiles s={stats} />
-        <Card title="Sessions" icon={HeartPulse}>
+        <Card title="Sessions">
           <ul className="divide-y divide-line">
             {sessions.map((r) => (
               <li key={r.id} className="py-3">
@@ -243,20 +239,20 @@ async function Cardio({ ownerId, activity }: { ownerId: string; activity: string
               <Link href={`/exercises?mode=cardio&activity=${encodeURIComponent(s.key)}`} className="block card rounded-2xl p-4 hover:bg-surface-2">
                 <p className="font-semibold text-ink">{s.name}</p>
                 <p className="mb-3 text-xs text-ink-2">
-                  {s.sessions} sessions · last {fmtDateShort(s.last_date)}
+                  {s.sessions} {s.sessions === 1 ? "session" : "sessions"} · last {fmtDateShort(s.last_date)}
                 </p>
                 <dl className="tabular grid grid-cols-3 gap-2 text-xs">
                   <div>
                     <dt className="text-ink-2">Distance</dt>
-                    <dd className="text-sm font-semibold text-ink">{s.total_km > 0 ? `${fmtNumber(s.total_km, 1)} km` : "–"}</dd>
+                    <dd className="font-display text-lg font-semibold text-ink">{s.total_km > 0 ? `${fmtNumber(s.total_km, 1)} km` : "–"}</dd>
                   </div>
                   <div>
                     <dt className="text-ink-2">Time</dt>
-                    <dd className="text-sm font-semibold text-ink">{s.total_min > 0 ? `${fmtNumber(s.total_min)} min` : "–"}</dd>
+                    <dd className="font-display text-lg font-semibold text-ink">{s.total_min > 0 ? `${fmtNumber(s.total_min)} min` : "–"}</dd>
                   </div>
                   <div>
                     <dt className="text-ink-2">Best pace</dt>
-                    <dd className="text-sm font-semibold text-ink">{fmtPace(s.best_pace_min_per_km)}</dd>
+                    <dd className="font-display text-lg font-semibold text-ink">{fmtPace(s.best_pace_min_per_km)}</dd>
                   </div>
                 </dl>
               </Link>
@@ -270,11 +266,11 @@ async function Cardio({ ownerId, activity }: { ownerId: string; activity: string
 
 function CardioTiles({ s }: { s: ReturnType<typeof buildCardioStats>[number] }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <StatTile label="Total distance" icon={Route} value={s.total_km > 0 ? `${fmtNumber(s.total_km, 1)} km` : "–"} sub={s.longest_km != null ? `longest ${fmtNumber(s.longest_km, 2)} km` : "no distance recorded"} />
-      <StatTile label="Total time" icon={Clock} value={s.total_min > 0 ? `${fmtNumber(s.total_min)} min` : "–"} sub={s.longest_min != null ? `longest ${fmtNumber(s.longest_min)} min` : "no duration recorded"} />
-      <StatTile label="Best pace" icon={Trophy} value={fmtPace(s.best_pace_min_per_km)} sub={s.best_pace_min_per_km == null ? "needs both distance and time" : undefined} />
-    </div>
+    <KpiStrip className="grid-cols-1 sm:grid-cols-3">
+      <StatTile label="Total distance" value={s.total_km > 0 ? `${fmtNumber(s.total_km, 1)} km` : "–"} sub={s.longest_km != null ? `longest ${fmtNumber(s.longest_km, 2)} km` : "no distance recorded"} />
+      <StatTile label="Total time" value={s.total_min > 0 ? `${fmtNumber(s.total_min)} min` : "–"} sub={s.longest_min != null ? `longest ${fmtNumber(s.longest_min)} min` : "no duration recorded"} />
+      <StatTile label="Best pace" value={fmtPace(s.best_pace_min_per_km)} sub={s.best_pace_min_per_km == null ? "needs both distance and time" : undefined} />
+    </KpiStrip>
   );
 }
 

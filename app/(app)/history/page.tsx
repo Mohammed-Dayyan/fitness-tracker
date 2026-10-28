@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronRightIcon, Dumbbell, Flame, Footprints } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronRightIcon } from "lucide-react";
 import { VerdictBadge } from "@/components/dashboard";
 import { StatusStrip } from "@/components/status-strip";
 import { DayWatcher } from "@/components/day-watcher";
-import { Card, EmptyState, PageHeader, PageSkeleton, StatTile } from "@/components/ui";
+import { Card, EmptyState, KpiStrip, PageHeader, PageSkeleton, StatTile } from "@/components/ui";
 import { requireOwner } from "@/lib/server/auth/current-owner";
 import { getDayContext } from "@/lib/server/day";
 import { getHistory, resolveHistoryRange, type HistoryDay } from "@/lib/server/history";
@@ -52,8 +52,12 @@ async function History({ searchParams }: { searchParams: PageProps<"/history">["
   const base = range.kind === "month" ? `month=${range.month}` : `from=${range.from}&to=${range.to}`;
   const toggleHref = `/history?${base}${showAll ? "" : "&all=1"}`;
   const thisMonth = ctx.today.slice(0, 7);
-  const navBtn = "inline-flex size-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink";
+  const navBtn = "inline-flex size-9 items-center justify-center rounded-[10px] bg-surface-2 text-ink-2 hover:text-ink";
   const title = range.kind === "month" ? fmtMonth(range.month) : `${fmtDateShort(range.from)} – ${fmtDateShort(range.to)}`;
+
+  // Only days that got an under/over/on-target judgement count (not incomplete, in-progress or empty days).
+  const judged = view.days.filter((d) => ["on_target", "under", "over", "mixed"].includes(d.verdict.status)).length;
+  const onTarget = view.days.filter((d) => d.verdict.status === "on_target").length;
 
   return (
     <div className="space-y-6">
@@ -78,27 +82,27 @@ async function History({ searchParams }: { searchParams: PageProps<"/history">["
               )}
             </div>
           ) : (
-            <Link href="/history" className="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-ink-2 hover:bg-surface-2 hover:text-ink">
+            <Link href="/history" className="rounded-[10px] bg-surface-2 px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink">
               Back to this month
             </Link>
           )
         }
       />
 
-      <form action="/history" method="get" className="flex flex-wrap items-end gap-2 card rounded-2xl p-3">
+      <form action="/history" method="get" className="flex flex-wrap items-end gap-2">
         <div>
           <label htmlFor="h-from" className="block text-xs text-ink-2">From</label>
-          <input id="h-from" name="from" type="date" defaultValue={range.from} max={ctx.today} required className="h-9 rounded-lg border border-line bg-surface px-2 text-sm text-ink" />
+          <input id="h-from" name="from" type="date" defaultValue={range.from} max={ctx.today} required className="h-9 rounded-[10px] border border-line bg-surface px-2 text-sm text-ink" />
         </div>
         <div>
           <label htmlFor="h-to" className="block text-xs text-ink-2">To</label>
-          <input id="h-to" name="to" type="date" defaultValue={range.to} max={ctx.today} required className="h-9 rounded-lg border border-line bg-surface px-2 text-sm text-ink" />
+          <input id="h-to" name="to" type="date" defaultValue={range.to} max={ctx.today} required className="h-9 rounded-[10px] border border-line bg-surface px-2 text-sm text-ink" />
         </div>
         {showAll && <input type="hidden" name="all" value="1" />}
-        <button type="submit" className="h-9 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-surface-2">
+        <button type="submit" className="h-9 rounded-[10px] bg-surface-2 px-3 text-sm font-medium text-ink hover:opacity-80">
           Show range
         </button>
-        <Link href={toggleHref} className="ml-auto h-9 rounded-lg px-3 text-sm leading-9 font-medium text-ink-2 hover:bg-surface-2 hover:text-ink">
+        <Link href={toggleHref} className="ml-auto h-9 rounded-[10px] px-3 text-sm leading-9 font-medium text-ink-2 hover:text-ink">
           {showAll ? "Show logged days only" : "Show all dates"}
         </Link>
       </form>
@@ -108,19 +112,28 @@ async function History({ searchParams }: { searchParams: PageProps<"/history">["
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile label="Days with records" icon={CalendarDays} value={`${view.loggedDays} / ${view.totalDays}`} sub="food, training, steps, weight or notes" />
+      <KpiStrip className="grid-cols-2 md:grid-cols-4">
+        <StatTile label="Days with records" value={`${view.loggedDays} / ${view.totalDays}`} sub="food, training, steps, weight or notes" />
         <StatTile
           label="Avg calories"
-          icon={Flame}
+         
           value={view.avgCalories == null ? "–" : fmtNumber(view.avgCalories)}
           sub={view.calorieDays ? `over ${view.calorieDays} day${view.calorieDays > 1 ? "s" : ""} with exact calories` : "no days with exact calories"}
         />
-        <StatTile label="Training sessions" icon={Dumbbell} value={view.sessions} sub="workouts + cardio" />
-        <StatTile label="Avg steps" icon={Footprints} value={view.avgSteps == null ? "–" : fmtNumber(view.avgSteps)} sub={view.stepDays ? `over ${view.stepDays} day${view.stepDays > 1 ? "s" : ""} with steps` : "no steps recorded"} />
-      </div>
+        <StatTile label="Training sessions" value={view.sessions} sub="workouts + cardio" />
+        <StatTile label="Avg steps" value={view.avgSteps == null ? "–" : fmtNumber(view.avgSteps)} sub={view.stepDays ? `over ${view.stepDays} day${view.stepDays > 1 ? "s" : ""} with steps` : "no steps recorded"} />
+      </KpiStrip>
 
-      <Card title={showAll ? "All dates" : "Logged days"} icon={CalendarDays}>
+      <Card
+        title={showAll ? "All dates" : "Logged days"}
+        action={
+          judged > 0 ? (
+            <span className="tabular text-xs text-ink-2">
+              {onTarget} of {judged} judged {judged === 1 ? "day" : "days"} on target
+            </span>
+          ) : undefined
+        }
+      >
         {view.totalDays === 0 ? (
           <EmptyState icon={CalendarDays} title="This period hasn't started yet" />
         ) : view.days.length === 0 ? (
@@ -135,12 +148,12 @@ async function History({ searchParams }: { searchParams: PageProps<"/history">["
               <caption className="sr-only">{showAll ? "Every date in the period" : "Days with records"}, newest first</caption>
               <thead className="text-xs text-ink-2">
                 <tr className="border-b border-line">
-                  <th scope="col" className="py-2 pr-2 font-medium">Date</th>
-                  <th scope="col" className="px-2 py-2 font-medium">Status</th>
-                  <th scope="col" className="px-2 py-2 text-right font-medium">Calories</th>
-                  <th scope="col" className="px-2 py-2 text-right font-medium">Protein</th>
-                  <th scope="col" className="px-2 py-2 text-right font-medium">Training</th>
-                  <th scope="col" className="py-2 pl-2 text-right font-medium">Steps</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] py-2 pr-2 font-medium">Date</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 font-medium">Status</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 text-right font-medium">Calories</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 text-right font-medium">Protein</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 text-right font-medium">Training</th>
+                  <th scope="col" className="sticky top-0 bg-[var(--card-bg)] py-2 pl-2 text-right font-medium">Steps</th>
                 </tr>
               </thead>
               <tbody>

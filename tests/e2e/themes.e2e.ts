@@ -19,7 +19,7 @@ const themeOf = (page: Page) => page.evaluate(() => document.documentElement.dat
 const prefOf = (page: Page) => page.evaluate(() => document.documentElement.dataset.themePref);
 /** The theme buttons of whichever switcher is visible (sidebar on desktop, top bar on phones). */
 const switcher = (page: Page) => page.locator('[role="group"][aria-label="Theme"]:visible');
-const pick = (page: Page, label: "Light" | "Dark" | "Aurora" | "System") => switcher(page).locator(`button[title="${label} theme"]`).click();
+const pick = (page: Page, label: "Light" | "Dark" | "Ember" | "System") => switcher(page).locator(`button[title="${label} theme"]`).click();
 
 describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
   beforeAll(async () => {
@@ -64,7 +64,7 @@ describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
       });
 
     const seen: Record<string, Awaited<ReturnType<typeof look>>> = {};
-    for (const [label, theme] of [["Light", "light"], ["Dark", "dark"], ["Aurora", "aurora"]] as const) {
+    for (const [label, theme] of [["Light", "light"], ["Dark", "dark"], ["Ember", "ember"]] as const) {
       await pick(page, label);
       expect(await themeOf(page)).toBe(theme);
       expect(await prefOf(page)).toBe(theme);
@@ -76,8 +76,8 @@ describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
     }
     // Every theme looks different, including inside the Recharts SVG.
     expect(new Set(Object.values(seen).map((s) => s.gridStroke)).size).toBe(3);
-    expect(new Set(Object.values(seen).map((s) => s.color)).size).toBe(3);
-    expect(new Set(Object.values(seen).map((s) => s.body)).size).toBeGreaterThanOrEqual(2);
+    expect(new Set(Object.values(seen).map((s) => s.color)).size).toBeGreaterThanOrEqual(2); // Dark and Ember share the coral accent by design
+    expect(new Set(Object.values(seen).map((s) => s.body)).size).toBe(3);
     expect(problems).toEqual([]);
     await ctx.close();
   });
@@ -87,20 +87,20 @@ describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
     const ctx = await browser.newContext({ locale: "en-US", colorScheme: "light" });
     const page = await ctx.newPage();
     await signIn(page);
-    await pick(page, "Aurora");
+    await pick(page, "Ember");
 
     await page.reload({ waitUntil: "domcontentloaded" });
     // Read straight after DOMContentLoaded, before React has hydrated: the inline script already ran.
-    expect(await themeOf(page)).toBe("aurora");
+    expect(await themeOf(page)).toBe("ember");
 
     const second = await ctx.newPage();
     await second.goto(`${server.url}/history`, { waitUntil: "domcontentloaded" });
-    expect(await themeOf(second)).toBe("aurora");
+    expect(await themeOf(second)).toBe("ember");
 
     // The sign-in page uses the same theme.
     await ctx.clearCookies();
     await second.goto(`${server.url}/login`, { waitUntil: "domcontentloaded" });
-    expect(await themeOf(second)).toBe("aurora");
+    expect(await themeOf(second)).toBe("ember");
     await ctx.close();
   });
 
@@ -118,10 +118,10 @@ describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
     await page.emulateMedia({ colorScheme: "dark" });
     await expect.poll(() => themeOf(page)).toBe("dark");
 
-    await pick(page, "Aurora");
+    await pick(page, "Ember");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(300);
-    expect(await themeOf(page)).toBe("aurora");
+    expect(await themeOf(page)).toBe("ember");
 
     await pick(page, "System"); // back to following the OS (currently light)
     expect(await themeOf(page)).toBe("light");
@@ -139,12 +139,12 @@ describe.skipIf(!chromeAvailable)("themes in a real browser", () => {
     await dark.focus();
     await page.keyboard.press("Enter");
     expect(await themeOf(page)).toBe("dark");
-    await group.getByRole("button", { name: "Aurora theme" }).focus();
+    await group.getByRole("button", { name: "Ember theme" }).focus();
     await page.keyboard.press("Space");
-    expect(await themeOf(page)).toBe("aurora");
+    expect(await themeOf(page)).toBe("ember");
 
     // The bar never covers content or overflows sideways in any theme on a phone.
-    for (const label of ["Light", "Dark", "Aurora"] as const) {
+    for (const label of ["Light", "Dark", "Ember"] as const) {
       await pick(page, label);
       const widest = await page.evaluate(() => Math.max(...[...document.querySelectorAll("body *")].filter((e) => !e.closest(".overflow-auto,.overflow-x-auto")).map((e) => Math.ceil(e.getBoundingClientRect().right))) - innerWidth);
       expect(widest, label).toBeLessThanOrEqual(0);

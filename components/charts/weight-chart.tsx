@@ -55,7 +55,7 @@ export function WeightChart({ data, summary, goal, height = 260 }: { data: Weigh
                 );
               }}
             />
-            <Line dataKey="weight_avg7" name="7-day average" type="monotone" stroke={color} strokeWidth={2} dot={false} activeDot={false} connectNulls isAnimationActive={false} />
+            <Line dataKey="weight_avg7" name="7-day average" type="linear" stroke={color} strokeWidth={2} dot={false} activeDot={false} connectNulls isAnimationActive={false} />
             <Line
               dataKey="weight_kg"
               name="Weigh-in"
