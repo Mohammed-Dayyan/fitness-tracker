@@ -28,15 +28,15 @@ export function ExportPanel({ today, defaultFrom }: { today: string; defaultFrom
         <p className="mt-1 mb-3 text-sm text-ink-2">
           Paste into ChatGPT when it needs exact entries or their IDs, for example to correct a meal.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex items-end gap-2">
+        <div className="grid gap-4">
+          <div className="flex max-w-lg items-end gap-2">
             <div className="min-w-0 flex-1">
               <label htmlFor="export-day" className="mb-1 block text-xs text-ink-2">Day</label>
               <input id="export-day" type="date" value={day} onChange={(e) => setDay(e.target.value)} className={input} />
             </div>
             <CopyButton url={`/api/export?scope=day&date=${day}`} label="Copy day" json disabled={!dayOk} />
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex max-w-lg items-end gap-2">
             <fieldset className="min-w-0 flex-1">
               <legend className="mb-1 text-xs text-ink-2">Month</legend>
               <div className="flex gap-2">

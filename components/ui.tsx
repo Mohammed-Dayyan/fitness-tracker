@@ -2,16 +2,15 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { fmtNumber } from "@/lib/shared/format";
 
+/** A flat panel with a quiet title. */
 export function Card({
   title,
-  icon: Icon,
   action,
   children,
   className = "",
   id,
 }: {
   title?: string;
-  icon?: LucideIcon;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -22,10 +21,7 @@ export function Card({
       {(title || action) && (
         <header className="mb-4 flex items-center justify-between gap-3">
           {title && (
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
-              {Icon && <Icon aria-hidden className="size-4 text-accent" />}
-              {title}
-            </h2>
+            <h2 className="text-[13px] font-medium text-ink-2">{title}</h2>
           )}
           {action}
         </header>
@@ -125,18 +121,36 @@ export function Meter({
   );
 }
 
-export function StatTile({ label, value, sub, icon: Icon }: { label: ReactNode; value: ReactNode; sub?: ReactNode; icon?: LucideIcon }) {
+/**
+ * One strip of figures split by hairlines (gap-px over a line-coloured ground),
+ * so any number of cells wraps cleanly and the strip closes on both edges.
+ * Pass the column classes ("grid-cols-2 lg:grid-cols-4"); fill whole rows.
+ */
+export function KpiStrip({ children, className = "grid-cols-2 lg:grid-cols-4" }: { children: ReactNode; className?: string }) {
+  return <div className={`grid gap-px overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--line)] ${className}`}>{children}</div>;
+}
+
+/** A figure, not a widget: label over a large number, no icon chip. Lives inside a KpiStrip. */
+export function StatTile({ label, value, sub }: { label: ReactNode; value: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="card rounded-2xl p-4">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
-        {Icon && <Icon aria-hidden className="size-3.5" />}
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold text-ink">{value}</p>
+    <div className="bg-[var(--card-bg)] p-4">
+      <p className="text-xs font-medium text-ink-2">{label}</p>
+      <p className="tabular mt-1 font-display text-3xl font-semibold tracking-tight text-ink">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-ink-2">{sub}</p>}
     </div>
   );
 }
+
+/** Pill-in-a-track control made of links (server-rendered, shareable). Mark the current item with aria-current. */
+export function Segmented({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <nav aria-label={label} className={`inline-flex flex-wrap gap-1 rounded-[10px] bg-surface-2 p-1 ${className}`}>
+      {children}
+    </nav>
+  );
+}
+export const SEG_ITEM =
+  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=true]:bg-surface aria-[current=true]:text-ink";
 
 export function EmptyState({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: ReactNode }) {
   return (
@@ -156,7 +170,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-ink-2">{subtitle}</p>}
       </div>
       {actions}

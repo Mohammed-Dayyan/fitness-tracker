@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Download, MessageSquareText, Upload } from "lucide-react";
+
 import { CopyButton } from "@/components/client-actions";
 import { DayWatcher } from "@/components/day-watcher";
 import { ExportPanel } from "@/components/export-panel";
@@ -35,7 +35,7 @@ async function DataPanels() {
   return (
     <div className="space-y-4">
       <DayWatcher today={ctx.today} msUntilNextDay={ctx.msUntilNextDay} />
-      <Card title="Import" icon={Upload} className="min-w-0">
+      <Card title="Import" className="min-w-0">
         <ol className="mb-4 grid gap-2 sm:grid-cols-3">
           {STEPS.map(([n, text]) => (
             <li key={n} className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm text-ink">
@@ -53,15 +53,15 @@ async function DataPanels() {
         <ImportPanel today={ctx.today} />
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card title="ChatGPT context" icon={MessageSquareText} className="min-w-0 lg:col-span-2">
+      <div className="grid items-start gap-4 lg:grid-cols-5">
+        <Card title="ChatGPT context" className="min-w-0 lg:col-span-2">
           <p className="mb-3 text-sm text-ink-2">
             Paste this as the first message of a new ChatGPT conversation. It has the import rules, your targets and recent
             progress, but not your full history; ChatGPT is told to ask for an export when it needs record IDs or past details.
           </p>
           <CopyButton url="/api/export/context" label="Copy context" variant="primary" />
         </Card>
-        <Card title="Export records" icon={Download} className="min-w-0 lg:col-span-3">
+        <Card title="Export records" className="min-w-0 lg:col-span-3">
           <ExportPanel today={ctx.today} defaultFrom={addDays(ctx.today, -29)} />
         </Card>
       </div>

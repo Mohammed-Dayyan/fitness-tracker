@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { History, Scale, Target, UserRound } from "lucide-react";
+
 import { DayWatcher } from "@/components/day-watcher";
 import { ProfileForm, TargetsForm, WeighInForm } from "@/components/settings-forms";
 import { Card, PageHeader, PageSkeleton } from "@/components/ui";
@@ -40,18 +40,18 @@ async function SettingsContent() {
   const current = targetsInEffect(targets, ctx.today);
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-3xl space-y-4">
       <DayWatcher today={ctx.today} msUntilNextDay={ctx.msUntilNextDay} />
-      <Card title="Profile" icon={UserRound} id="profile">
+      <Card title="Profile" id="profile">
         <ProfileForm profile={profile} today={ctx.today} />
       </Card>
 
-      <Card title="Body weight" icon={Scale} id="weight">
+      <Card title="Body weight" id="weight">
         <p className="mb-4 text-sm text-ink-2">A weight is a dated measurement, separate from your profile. Pick the day and record it.</p>
         <WeighInForm latestWeight={latestWeight} today={ctx.today} />
       </Card>
 
-      <Card title="Daily targets" icon={Target} id="targets" className="scroll-mt-6">
+      <Card title="Daily targets" id="targets" className="scroll-mt-6">
         <p className="mb-4 text-sm text-ink-2">
           {current
             ? `Current targets apply from ${fmtDateMedium(current.effective_from as string)}.`
@@ -61,7 +61,7 @@ async function SettingsContent() {
       </Card>
 
       {targets.length > 0 && (
-        <Card title="Target history" icon={History}>
+        <Card title="Target history">
           <div className="-mx-5 overflow-x-auto">
             <table className="tabular w-full min-w-[36rem] text-left text-sm">
               <caption className="sr-only">Target versions, newest first</caption>

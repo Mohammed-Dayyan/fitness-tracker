@@ -1,7 +1,7 @@
 /**
  * Theme handling shared by the inline pre-paint script (app/layout.tsx) and the
  * switcher. The preference is stored per device in localStorage; the page gets
- * data-theme ("light" | "dark" | "aurora") before first paint so it never
+ * data-theme ("light" | "dark" | "ember") before first paint so it never
  * flashes the wrong theme. "system" is resolved to light or dark here, which is
  * why the stylesheet only has three theme blocks.
  *
@@ -10,22 +10,28 @@
  */
 
 export const THEME_KEY = "ft-theme";
-export const THEME_PREFS = ["light", "dark", "aurora", "system"] as const;
+export const THEME_PREFS = ["light", "dark", "ember", "system"] as const;
 export type ThemePref = (typeof THEME_PREFS)[number];
-export type Theme = "light" | "dark" | "aurora";
+export type Theme = "light" | "dark" | "ember";
 
 /** Browser UI colour (address bar) for each theme. */
-export const THEME_COLORS: Record<Theme, string> = { light: "#eef3ff", dark: "#070a12", aurora: "#1a0f4a" };
+export const THEME_COLORS: Record<Theme, string> = { light: "#f6f1ea", dark: "#0e0f11", ember: "#14110f" };
 
 const CHANGE_EVENT = "ft-theme-change";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 export const isThemePref = (v: unknown): v is ThemePref => typeof v === "string" && (THEME_PREFS as readonly string[]).includes(v);
 
+/** A stored "aurora" (retired theme) is read as "ember"; anything unknown is "system". */
+export const normalizePref = (v: unknown): ThemePref => (v === "aurora" ? "ember" : isThemePref(v) ? v : "system");
+
 export const resolveTheme = (pref: ThemePref, prefersDark: boolean): Theme => (pref === "system" ? (prefersDark ? "dark" : "light") : pref);
 
-/** Runs before first paint (inline in <head>). Must stay tiny, dependency-free ES5. */
-export const THEME_INIT_SCRIPT = `(function(){var d=document.documentElement;try{var p=localStorage.getItem(${JSON.stringify(THEME_KEY)});if(${JSON.stringify(THEME_PREFS)}.indexOf(p)<0)p="system";var t=p==="system"?(matchMedia(${JSON.stringify(DARK_QUERY)}).matches?"dark":"light"):p;d.setAttribute("data-theme",t);d.setAttribute("data-theme-pref",p)}catch(e){d.setAttribute("data-theme","light");d.setAttribute("data-theme-pref","system")}})()`;
+/**
+ * Runs before first paint (inline in <head>). Must stay tiny, dependency-free ES5.
+ * A preference saved as "aurora" (the retired theme) becomes "ember".
+ */
+export const THEME_INIT_SCRIPT = `(function(){var d=document.documentElement;try{var p=localStorage.getItem(${JSON.stringify(THEME_KEY)});if(p==="aurora")p="ember";if(${JSON.stringify(THEME_PREFS)}.indexOf(p)<0)p="system";var t=p==="system"?(matchMedia(${JSON.stringify(DARK_QUERY)}).matches?"dark":"light"):p;d.setAttribute("data-theme",t);d.setAttribute("data-theme-pref",p)}catch(e){d.setAttribute("data-theme","light");d.setAttribute("data-theme-pref","system")}})()`;
 
 export function readPref(): ThemePref {
   const p = document.documentElement.getAttribute("data-theme-pref");
@@ -64,7 +70,7 @@ export function subscribeTheme(onChange: () => void) {
   const mq = matchMedia(DARK_QUERY);
   const onSystem = () => readPref() === "system" && applyTheme("system");
   const onStorage = (e: StorageEvent) => {
-    if (e.key === THEME_KEY) applyTheme(isThemePref(e.newValue) ? e.newValue : "system");
+    if (e.key === THEME_KEY) applyTheme(normalizePref(e.newValue));
   };
   window.addEventListener(CHANGE_EVENT, onChange);
   window.addEventListener("storage", onStorage);

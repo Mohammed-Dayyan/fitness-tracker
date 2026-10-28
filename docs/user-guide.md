@@ -359,12 +359,12 @@ on a phone):
 
 | Theme | Look |
 |---|---|
-| **Light** | Soft tinted background, white cards, indigo accent |
-| **Dark** | Near-black, sky-blue accent |
-| **Aurora** | Deep indigo-to-violet background, dark glass cards with a glowing edge, cyan, violet and pink accents, glowing progress rings |
+| **Light** | Warm paper background, off-white panels, brown-black text, coral accent |
+| **Dark** | Near-black graphite, coral accent |
+| **Ember** | Warm charcoal, coral-orange accent, and lime for "on target". The showcase theme |
 | **System** | Follows your device: Light or Dark, switching live when the device does |
 
-The choice is remembered **on each device** (it is stored in that browser, not in
+All three share one layout and one accent colour logic; only the mood changes. A device that had chosen the old Aurora theme now gets Ember. The choice is remembered **on each device** (it is stored in that browser, not in
 your account), applies before the page first paints, and also themes the sign-in
 page. Chart colours, text and status colours were checked for readability in all
 three themes (text at least 4.5:1, chart colours checked for colour-blind
@@ -378,6 +378,15 @@ The Today page shows the date in its heading and is labelled **Today**,
 current date in your timezone. A page left open overnight refreshes itself at
 midnight, and also when you come back to the tab. The arrows, the date
 picker and links like `/?date=2026-10-26` open exactly that date.
+
+**The Today page** answers one question: am I on track, and what's left? From
+the top: the date with the day's status and one headline sentence, then a
+strip of six small markers (calories, protein, carbs, fat, fiber, steps). Below
+it, one panel leads with calories (the figure, what remains, a bar), then
+protein, carbs, fat and fiber against their targets. Beside it sit steps and
+weight, with the **Log steps** field right there. Then your meals, the status
+details (reliability, next steps, and **Why this status**, a collapsed list of
+the per-measure reasons), training and the last 7 days.
 
 **Daily verdict.** Rules are applied in this order:
 
@@ -404,7 +413,7 @@ under it (Cal, Pro, Carb, Fat, Fib, Steps) shows ↓ under, ✓ on target, ↑ o
 available to screen readers. Today's shortfalls show as "In progress" (still to go), not as under. The verdict also lists **next steps** (set targets, add missing
 nutrition details, log steps) and explains when estimates lower confidence.
 
-**History** lists only days with records by default. **Show all dates**
+**History** lists only days with records by default, with a line above the table saying how many of the judged days were on target (days that are incomplete, still in progress or empty aren't judged). **Show all dates**
 includes empty days. A day counts as logged if it has food, training, steps,
 weight, measurements or a note.
 

@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarRange, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { TargetBarChart } from "@/components/charts/target-bar-chart";
 import { CopyButton, DateNav } from "@/components/client-actions";
 import { StepsQuickLog } from "@/components/quick-log";
-import { ActivityCard, CaloriesCard, MacrosCard, MealTimeline, SERIES, TrainingCard, VerdictCard } from "@/components/dashboard";
+import { ActivityCard, MealTimeline, SERIES, TrainingCard, WhyCard } from "@/components/dashboard";
 import { DayWatcher } from "@/components/day-watcher";
-import { TodayHero } from "@/components/today-hero";
+import { AnswerPanel, TodayTitle } from "@/components/today-hero";
 import { Card, PageSkeleton } from "@/components/ui";
 import { requireOwner } from "@/lib/server/auth/current-owner";
 import { getDayView, resolveDate } from "@/lib/server/day";
@@ -30,10 +30,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
   const kicker = date === today ? "Today" : date < today ? "Past day" : "Upcoming day";
   const weekFrom = view.week[0]?.date ?? date;
 
+  // Grid: 3 columns with a 24 px gap. Two-thirds + one-third = (W-48)/3*2 + 24 + (W-48)/3 = W, so every row closes on both edges.
   return (
     <div className="space-y-6">
       <DayWatcher today={today} msUntilNextDay={ctx.msUntilNextDay} />
-      <TodayHero
+      <TodayTitle
         view={view}
         date={date}
         kicker={kicker}
@@ -52,50 +53,51 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* The answer, and the day's one job (logging steps) beside it. */}
+      <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2">
-          <VerdictCard verdict={view.verdict} />
+          <AnswerPanel summary={view.summary} />
         </div>
-        <CaloriesCard summary={view.summary} />
+        <ActivityCard
+          summary={view.summary}
+          measurements={view.measurements}
+          note={view.note}
+          quickLog={<StepsQuickLog key={date} date={date} today={today} current={view.summary.steps} embedded />}
+        />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <MacrosCard summary={view.summary} />
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2">
           <MealTimeline meals={view.meals} />
         </div>
+        <WhyCard verdict={view.verdict} />
       </div>
 
-      <StepsQuickLog key={date} date={date} today={today} current={view.summary.steps} />
-
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <TrainingCard workouts={view.workouts} cardio={view.cardio} />
-        <ActivityCard summary={view.summary} measurements={view.measurements} note={view.note} />
+        <Card
+          title={`7 days to ${fmtDateShort(date)}: calories`}
+          action={
+            <Link href="/trends" className="text-xs font-medium text-ink-2 hover:text-ink">
+              See trends →
+            </Link>
+          }
+        >
+          <TargetBarChart
+            height={180}
+            color={SERIES.calories}
+            label="Calories"
+            unit="kcal"
+            summary={`${fmtDateShort(weekFrom)} to ${fmtDateShort(date)}: food logged on ${view.week.filter((d) => d.food.entries > 0).length} of 7 days.`}
+            data={view.week.map((d) => ({
+              date: d.date,
+              value: d.food.entries ? d.food.totals.calories : null,
+              target: (d.targets?.calories as number | null | undefined) ?? null,
+              partial: d.food.missing.calories > 0,
+            }))}
+          />
+        </Card>
       </div>
-
-      <Card
-        title={`7 days to ${fmtDateShort(date)}: calories`}
-        icon={CalendarRange}
-        action={
-          <Link href="/trends" className="text-xs font-medium text-ink-2 hover:text-ink">
-            See trends →
-          </Link>
-        }
-      >
-        <TargetBarChart
-          height={180}
-          color={SERIES.calories}
-          label="Calories"
-          unit="kcal"
-          summary={`${fmtDateShort(weekFrom)} to ${fmtDateShort(date)}: food logged on ${view.week.filter((d) => d.food.entries > 0).length} of 7 days.`}
-          data={view.week.map((d) => ({
-            date: d.date,
-            value: d.food.entries ? d.food.totals.calories : null,
-            target: (d.targets?.calories as number | null | undefined) ?? null,
-            partial: d.food.missing.calories > 0,
-          }))}
-        />
-      </Card>
     </div>
   );
 }

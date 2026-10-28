@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { BottomNav, SideNav } from "@/components/nav";
 import { LogoutButton } from "@/components/logout-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -9,11 +9,12 @@ import { SessionKeepAlive } from "@/components/session-keepalive";
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex flex-1">
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col justify-between border-r border-line bg-surface/80 px-3 py-5 backdrop-blur md:flex">
+      {/* Open plane: the sidebar sits on the page ground, separated by nothing. 224 px wide. */}
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col justify-between px-3 py-5 md:flex">
         <div>
-          <p className="mb-6 flex items-center gap-2 px-3 text-sm font-semibold text-ink">
-            <Activity aria-hidden className="size-5 text-accent" />
-            <span className="text-gradient">Fitness Tracker</span>
+          <p className="mb-6 flex items-center gap-2.5 px-3 font-display text-base font-semibold tracking-tight text-ink">
+            <BrandMark />
+            Fitness Tracker
           </p>
           <SideNav />
         </div>
@@ -24,10 +25,10 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-line bg-surface/80 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur md:hidden">
-          <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <Activity aria-hidden className="size-5 text-accent" />
-            <span className="text-gradient">Fitness Tracker</span>
+        <header className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 md:hidden">
+          <p className="flex items-center gap-2 font-display text-base font-semibold tracking-tight text-ink">
+            <BrandMark className="size-5" />
+            Fitness Tracker
           </p>
           <div className="flex items-center gap-1">
             <ThemeSwitcher compact />

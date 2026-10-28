@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
-import { THEME_COLORS, THEME_INIT_SCRIPT, THEME_KEY, THEME_PREFS, isThemePref, resolveTheme } from "@/lib/client/theme";
+import { THEME_COLORS, THEME_INIT_SCRIPT, THEME_KEY, THEME_PREFS, isThemePref, normalizePref, resolveTheme } from "@/lib/client/theme";
 
 /** Runs the inline pre-paint script against a fake browser and returns what it set on <html>. */
 function runInitScript(opts: { stored?: string | null; prefersDark?: boolean; storageThrows?: boolean }) {
@@ -22,7 +22,15 @@ function runInitScript(opts: { stored?: string | null; prefersDark?: boolean; st
 
 describe("theme pre-paint script", () => {
   it("applies a stored theme exactly", () => {
-    for (const t of ["light", "dark", "aurora"]) expect(runInitScript({ stored: t })).toEqual({ "data-theme": t, "data-theme-pref": t });
+    for (const t of ["light", "dark", "ember"]) expect(runInitScript({ stored: t })).toEqual({ "data-theme": t, "data-theme-pref": t });
+  });
+
+  it("reads a preference saved as the retired 'aurora' as 'ember'", () => {
+    expect(runInitScript({ stored: "aurora", prefersDark: false })).toEqual({ "data-theme": "ember", "data-theme-pref": "ember" });
+    expect(normalizePref("aurora")).toBe("ember");
+    expect(normalizePref("neon")).toBe("system");
+    expect(normalizePref(null)).toBe("system");
+    expect(normalizePref("dark")).toBe("dark");
   });
 
   it("'system' (and nothing stored) follows the operating system", () => {
@@ -49,14 +57,14 @@ describe("theme pre-paint script", () => {
 
 describe("theme helpers", () => {
   it("resolves and validates preferences", () => {
-    expect(THEME_PREFS).toEqual(["light", "dark", "aurora", "system"]);
-    expect(resolveTheme("aurora", false)).toBe("aurora");
+    expect(THEME_PREFS).toEqual(["light", "dark", "ember", "system"]);
+    expect(resolveTheme("ember", false)).toBe("ember");
     expect(resolveTheme("system", true)).toBe("dark");
     expect(resolveTheme("system", false)).toBe("light");
     expect(isThemePref("dark")).toBe(true);
     expect(isThemePref("neon")).toBe(false);
     expect(isThemePref(null)).toBe(false);
-    expect(Object.keys(THEME_COLORS).sort()).toEqual(["aurora", "dark", "light"]);
+    expect(Object.keys(THEME_COLORS).sort()).toEqual(["dark", "ember", "light"]);
   });
 });
 
@@ -77,14 +85,14 @@ function block(selector: RegExp): Record<string, string> {
 const themes = {
   light: block(/:root,\s*:root\[data-theme="light"\]\s*\{/),
   dark: block(/:root\[data-theme="dark"\]\s*\{/),
-  aurora: block(/:root\[data-theme="aurora"\]\s*\{/),
+  ember: block(/:root\[data-theme="ember"\]\s*\{/),
 };
 
 const REQUIRED = [
   "--plane", "--plane-bg", "--surface", "--surface-2", "--ink", "--ink-2", "--muted", "--grid", "--axis", "--line",
-  "--card-bg", "--card-border", "--card-shadow", "--card-blur", "--card-edge",
-  "--accent", "--accent-2", "--accent-grad", "--btn-bg", "--btn-ink", "--btn-shadow",
-  "--hero-bg", "--hero-border", "--hero-shadow", "--hero-ink", "--hero-ink-2", "--nav-active-bg",
+  "--card-bg", "--card-border",
+  "--accent", "--accent-ink", "--btn-bg", "--btn-ink",
+  "--hero-bg", "--hero-ink", "--hero-ink-2", "--nav-active-bg",
   "--s-calories", "--s-protein", "--s-carbs", "--s-fat", "--s-fiber", "--s-steps", "--s-weight",
   "--good", "--good-ink", "--warning", "--warning-ink", "--serious", "--critical", "--critical-ink",
 ];
@@ -106,29 +114,38 @@ describe("theme stylesheet", () => {
 
     it(`${name}: body text is readable (≥ 4.5:1) on its surfaces`, () => {
       for (const surface of ["--surface", "--surface-2", "--plane"]) {
-        for (const ink of ["--ink", "--ink-2", "--muted", "--good-ink", "--warning-ink", "--critical-ink"]) {
+        for (const ink of ["--ink", "--ink-2", "--muted", "--accent-ink", "--good-ink", "--warning-ink", "--critical-ink"]) {
           expect(contrast(tokens[ink], tokens[surface]), `${name} ${ink} on ${surface}`).toBeGreaterThanOrEqual(4.5);
         }
       }
     });
 
-    it(`${name}: primary button text is readable on both ends of its gradient`, () => {
+    it(`${name}: primary button text is readable on its fill`, () => {
       const stops = tokens["--btn-bg"].match(/#[0-9a-f]{6}/gi) ?? [];
-      expect(stops.length).toBeGreaterThanOrEqual(2);
-      for (const s of stops) expect(contrast(tokens["--btn-ink"], s), `${name} on ${s}`).toBeGreaterThanOrEqual(4.5);
+      expect(stops.length).toBeGreaterThanOrEqual(1);
+      for (const c of stops) expect(contrast(tokens["--btn-ink"], c), `${name} on ${c}`).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`${name}: the accent mark is visible (≥ 3:1) against panels and the page`, () => {
+      for (const surface of ["--surface", "--plane"]) expect(contrast(tokens["--accent"], tokens[surface]), `${name} accent on ${surface}`).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${name}: flat by design (solid fills only)`, () => {
+      for (const t of ["--plane-bg", "--btn-bg", "--hero-bg", "--card-bg"]) expect(tokens[t], `${name} ${t}`).toMatch(/^#[0-9a-f]{6}$/i);
     });
   }
+
+  it("the stylesheet itself has no gradients, blur, glow or shadows", () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/gradient\(|blur\(|drop-shadow|box-shadow|text-shadow/);
+    for (const gone of ["--card-edge", "--card-blur", "--card-shadow", "--accent-grad", "--ring-glow", "--btn-shadow", "--hero-shadow"]) expect(code, gone).not.toContain(gone);
+  });
 
   it("charts use the validated palettes (re-run the dataviz validator before changing these)", () => {
     const series = (t: Record<string, string>) => ["calories", "protein", "carbs", "fat", "fiber", "steps", "weight"].map((k) => t[`--s-${k}`]).join(",");
     expect(series(themes.light)).toBe("#2a78d6,#eb6834,#1baf7a,#eda100,#e87ba4,#6250d6,#008300");
     const dark = "#3987e5,#d95926,#199e70,#c98500,#d55181,#9085e9,#2a9d2a";
     expect(series(themes.dark)).toBe(dark);
-    expect(series(themes.aurora)).toBe(dark);
-  });
-
-  it("Aurora glass is dark-tinted, so text stays readable over its brightest glow", () => {
-    // White-tinted glass failed AA over the cyan glow (muted text 3.5:1); dark glass keeps ≥ 5.5:1.
-    expect(themes.aurora["--card-bg"]).toMatch(/^rgba\(\s*\d{1,2},\s*\d{1,2},\s*\d{1,2},/);
+    expect(series(themes.ember)).toBe(dark);
   });
 });

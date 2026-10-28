@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -5,13 +6,12 @@ import {
   ArrowUp,
   ArrowUpDown,
   CalendarClock,
+  ChevronDown,
   CircleCheck,
   CircleDashed,
   CircleHelp,
   Clock,
   Dumbbell,
-  Flame,
-  Footprints,
   HeartPulse,
   NotebookPen,
   Ruler,
@@ -21,7 +21,6 @@ import {
   Utensils,
   type LucideIcon,
 } from "lucide-react";
-import { StatusStrip } from "@/components/status-strip";
 import { Badge, Card, EmptyState, Meter, type Tone } from "@/components/ui";
 import type { MealGroup } from "@/lib/server/day";
 import type { DailySummary } from "@/lib/server/summary";
@@ -88,7 +87,12 @@ export function SetTargetsCta({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function VerdictCard({ verdict }: { verdict: Verdict }) {
+/**
+ * What sits under the day's finding: how reliable the totals are, the call to set
+ * targets, what to do next, and (collapsed) the per-measure detail behind the
+ * status. The headline and the strip are shown at the top of the page.
+ */
+export function WhyCard({ verdict }: { verdict: Verdict }) {
   const confidence = {
     high: { tone: "good" as const, label: "All nutrients complete" },
     medium: { tone: "neutral" as const, label: "Includes estimates" },
@@ -97,16 +101,11 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
   }[verdict.confidence];
   const assessed = verdict.checks.filter((c) => c.status !== "no_target");
   const showChecks = verdict.targetsSet && verdict.status !== "no_data" && verdict.status !== "future";
+  const live = verdict.status !== "future" && verdict.status !== "no_data";
   return (
-    <Card title="Daily verdict" icon={CircleCheck} action={<VerdictBadge status={verdict.status} />}>
-      <p className="text-lg font-semibold text-ink">{verdict.headline}</p>
-      {verdict.status !== "future" && verdict.status !== "no_data" && verdict.targetsSet && (
-        <div className="mt-2">
-          <StatusStrip checks={verdict.checks} />
-        </div>
-      )}
-      {verdict.status !== "future" && verdict.status !== "no_data" && (
-        <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-2">
+    <Card title="Status details">
+      {live && (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
           <Badge tone={confidence.tone}>{confidence.label}</Badge>
           {verdict.confidence !== "none" && verdict.confidenceNote}
         </p>
@@ -118,31 +117,9 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
         </div>
       )}
 
-      {showChecks && (
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="Checks against targets">
-          {assessed.map((c) => (
-            <li key={c.key} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm">
-              <span className="min-w-0 text-ink">
-                <span className="font-medium">{c.label}</span>
-                <span className="ml-2 text-ink-2">{c.detail}</span>
-              </span>
-              <Badge tone={CHECK_STATUS[c.status].tone}>{CHECK_STATUS[c.status].label}</Badge>
-            </li>
-          ))}
-        </ul>
-      )}
-      {showChecks && assessed.length < verdict.checks.length && (
-        <p className="mt-2 text-xs text-ink-2">
-          No target for {verdict.checks.filter((c) => c.status === "no_target").map((c) => c.label.toLowerCase()).join(", ")}.{" "}
-          <Link href="/settings#targets" className="font-medium text-ink underline">
-            Edit targets
-          </Link>
-        </p>
-      )}
-
       {verdict.actions.length > 0 && (
-        <div className="mt-4 border-t border-line pt-3">
-          <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-ink-2 uppercase">Next steps</h3>
+        <div className="mt-4">
+          <h3 className="mb-1.5 text-[13px] font-medium text-ink-2">Next steps</h3>
           <ul className="space-y-1.5">
             {verdict.actions.map((a) => (
               <li key={a} className="flex gap-2 text-sm text-ink">
@@ -153,86 +130,34 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
           </ul>
         </div>
       )}
-    </Card>
-  );
-}
 
-export function CaloriesCard({ summary }: { summary: DailySummary }) {
-  const target = (summary.targets?.calories as number | null | undefined) ?? null;
-  const eaten = summary.food.totals.calories;
-  const logged = summary.food.entries > 0;
-  const missing = summary.food.missing.calories;
-  const diff = target != null ? target - eaten : null;
-  return (
-    <Card title="Calories" icon={Flame}>
-      {logged ? (
-        <>
-          <p className="flex items-baseline gap-2">
-            <span className="text-5xl font-semibold tracking-tight text-ink">
-              {fmtNumber(eaten)}
-              {missing > 0 && <span className="text-3xl text-ink-2">+</span>}
-            </span>
-            <span className="text-sm text-ink-2">{target != null ? `of ${fmtNumber(target)} kcal` : "kcal"}</span>
-          </p>
-          <p className="mt-1 text-sm text-ink-2">
-            {missing > 0
-              ? `Partial: ${missing} ${missing === 1 ? "entry has" : "entries have"} no calories yet`
-              : diff == null
-                ? "Calorie target not set"
-                : diff >= 0
-                  ? `${fmtNumber(diff)} kcal remaining`
-                  : `${fmtNumber(-diff)} kcal over target`}
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-ink-2">No food logged{target != null ? ` · target ${fmtNumber(target)} kcal` : ""}.</p>
+      {showChecks && (
+        <details className="group mt-4 border-t border-line pt-3">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+            Why this status
+            <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <ul className="mt-3 space-y-1.5" aria-label="Checks against targets">
+            {assessed.map((c) => (
+              <li key={c.key} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 text-ink">
+                  <span className="font-medium">{c.label}</span>
+                  <span className="ml-2 text-ink-2">{c.detail}</span>
+                </span>
+                <Badge tone={CHECK_STATUS[c.status].tone}>{CHECK_STATUS[c.status].label}</Badge>
+              </li>
+            ))}
+          </ul>
+          {assessed.length < verdict.checks.length && (
+            <p className="mt-2 text-xs text-ink-2">
+              No target for {verdict.checks.filter((c) => c.status === "no_target").map((c) => c.label.toLowerCase()).join(", ")}.{" "}
+              <Link href="/settings#targets" className="font-medium text-ink underline">
+                Edit targets
+              </Link>
+            </p>
+          )}
+        </details>
       )}
-      <div className="mt-4">
-        <Meter label="Food intake" value={logged ? eaten : null} target={target} unit="kcal" color={SERIES.calories} emptyLabel="No food logged" />
-      </div>
-      <p className="mt-4 flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">
-        <Dumbbell aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        <span>
-          Exercise (estimated):{" "}
-          <span className="font-medium text-ink">
-            {summary.estimated_exercise_calories == null ? "none recorded" : `≈ ${fmtNumber(summary.estimated_exercise_calories)} kcal`}
-          </span>
-          . Shown separately and never added back to your food budget.
-        </span>
-      </p>
-    </Card>
-  );
-}
-
-export function MacrosCard({ summary }: { summary: DailySummary }) {
-  const t = summary.targets;
-  const logged = summary.food.entries > 0;
-  const rows = [
-    { key: "protein_g", label: "Protein" },
-    { key: "carbs_g", label: "Carbs" },
-    { key: "fat_g", label: "Fat" },
-    { key: "fiber_g", label: "Fiber" },
-  ] as const;
-  return (
-    <Card title="Macros" icon={Utensils}>
-      <div className="space-y-4">
-        {rows.map((r) => {
-          const missing = summary.food.missing[r.key];
-          return (
-            <Meter
-              key={r.key}
-              label={r.label}
-              value={logged ? summary.food.totals[r.key] : null}
-              target={(t?.[r.key] as number | null | undefined) ?? null}
-              unit="g"
-              color={SERIES[r.key]}
-              overIsBad={r.key === "carbs_g" || r.key === "fat_g"}
-              emptyLabel="No food logged"
-              note={missing ? `Partial: ${missing} ${missing === 1 ? "entry" : "entries"} unknown, so the true total may be higher` : undefined}
-            />
-          );
-        })}
-      </div>
     </Card>
   );
 }
@@ -269,7 +194,7 @@ function FoodRow({ f, groupTime }: { f: JsonRecord; groupTime: string | null }) 
 
 export function MealTimeline({ meals }: { meals: MealGroup[] }) {
   return (
-    <Card title="Meals" icon={Utensils}>
+    <Card title="Meals">
       {meals.length === 0 ? (
         <EmptyState icon={Utensils} title="No food logged">
           Import food entries from ChatGPT on the <Link href="/data" className="font-medium underline">Data</Link> page.
@@ -284,9 +209,12 @@ export function MealTimeline({ meals }: { meals: MealGroup[] }) {
                   {m.label}
                   {m.time && <span className="ml-2 font-normal text-ink-2">{m.time}</span>}
                 </h3>
-                <p className="tabular text-xs text-ink-2">
-                  {mealTotal(m, "calories", "kcal")} · P {mealTotal(m, "protein_g", "g")}
-                </p>
+                {/* A single entry already shows its own figures right below. */}
+                {m.entries.length > 1 && (
+                  <p className="tabular text-xs text-ink-2">
+                    {mealTotal(m, "calories", "kcal")} · P {mealTotal(m, "protein_g", "g")}
+                  </p>
+                )}
               </div>
               <ul className="divide-y divide-line">
                 {m.entries.map((f) => (
@@ -328,7 +256,7 @@ function setLabel(s: JsonRecord) {
 export function TrainingCard({ workouts, cardio }: { workouts: JsonRecord[]; cardio: JsonRecord[] }) {
   const empty = workouts.length === 0 && cardio.length === 0;
   return (
-    <Card title="Training" icon={Dumbbell}>
+    <Card title="Training">
       {empty ? (
         <EmptyState icon={Dumbbell} title="No workouts or cardio logged" />
       ) : (
@@ -385,7 +313,7 @@ export function TrainingCard({ workouts, cardio }: { workouts: JsonRecord[]; car
   );
 }
 
-export function ActivityCard({ summary, measurements, note }: { summary: DailySummary; measurements: JsonRecord[]; note: string | null }) {
+export function ActivityCard({ summary, measurements, note, quickLog }: { summary: DailySummary; measurements: JsonRecord[]; note: string | null; quickLog?: ReactNode }) {
   const stepsTarget = (summary.targets?.steps as number | null | undefined) ?? null;
   const goal = (summary.targets?.goal_weight_kg as number | null | undefined) ?? null;
   const measureLabels: [string, string][] = [
@@ -397,8 +325,22 @@ export function ActivityCard({ summary, measurements, note }: { summary: DailySu
     ["thigh_cm", "Thigh"],
   ];
   return (
-    <Card title="Activity & body" icon={Footprints}>
-      <Meter label="Steps" value={summary.steps} target={stepsTarget} unit="" color={SERIES.steps} overIsBad={false} />
+    <Card title="Activity & body" className="flex flex-col">
+      <Meter
+        label="Steps"
+        value={summary.steps}
+        target={stepsTarget}
+        unit=""
+        color={SERIES.steps}
+        overIsBad={false}
+        note={
+          summary.steps != null && stepsTarget != null && stepsTarget > 0
+            ? summary.steps >= stepsTarget
+              ? `${fmtNumber(summary.steps - stepsTarget)} over the target`
+              : `${fmtNumber(stepsTarget - summary.steps)} to go`
+            : undefined
+        }
+      />
       <div className="mt-4 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2">
         <span className="flex items-center gap-2 text-sm text-ink-2">
           <Scale aria-hidden className="size-4" />
@@ -434,6 +376,7 @@ export function ActivityCard({ summary, measurements, note }: { summary: DailySu
           <p className="whitespace-pre-line">{note}</p>
         </div>
       )}
+      {quickLog && <div className="mt-auto pt-5">{quickLog}</div>}
     </Card>
   );
 }

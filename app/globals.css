@@ -1,59 +1,54 @@
 @import "tailwindcss";
 
 /*
- * Three themes, selected with data-theme on <html> (set before first paint by
- * the inline script in app/layout.tsx; "system" is resolved to light or dark
- * there, so only these three blocks exist):
+ * One family, three moods, selected with data-theme on <html> (set before first
+ * paint by the inline script in app/layout.tsx; "system" is resolved to light or
+ * dark there, so only these three blocks exist):
  *
- *   light   – tinted daylight surfaces with an indigo accent
- *   dark    – near-black with a sky-blue accent
- *   aurora  – deep indigo/violet gradient, dark glass cards, cyan→violet→pink accents
+ *   light  "Paper"    – warm paper, ink-brown text, coral accent
+ *   dark   "Graphite" – near-black neutral, coral accent
+ *   ember  "Ember"    – warm charcoal, coral-orange accent, lime "on target"
  *
- * Chart colours come from the validated categorical palette (adjacent-pair
- * colour-blind and normal-vision separation checked against EACH theme's
- * surface). The light set sits below 3:1 for aqua/yellow/magenta, so every
- * coloured mark ships with a visible numeric label. Text always uses the ink
- * tokens (all ≥ 4.5:1 on the surfaces they appear on, including Aurora's
- * brightest glow behind a glass card), never a series colour.
+ * Rules shared by all three: flat panels (a tone step; the stylesheet has no
+ * gradients, blur or shadows, and a test keeps it that way), one hot colour (the accent) for actions and the data that answers
+ * the day's question, status colours that always ship with an icon and a label.
+ *
+ * Chart colours come from the validated categorical palette (checked on each
+ * theme's panel surface with the dataviz validator). The light set sits below
+ * 3:1 for aqua/yellow/magenta, so every coloured mark ships with a visible
+ * numeric label. Text always uses the ink tokens (all ≥ 4.5:1 on the surfaces
+ * they appear on), never a series colour. --accent-ink is the accent for TEXT
+ * (darker on Light so it stays readable on paper).
  */
 
-/* ---------- Light (default when nothing is set) ---------- */
+/* ---------- Light "Paper" (default when nothing is set) ---------- */
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --plane: #eef3ff;
-  --plane-bg:
-    radial-gradient(900px 420px at 0% -8%, rgba(99, 102, 241, 0.14), transparent 60%),
-    radial-gradient(800px 420px at 100% 0%, rgba(14, 165, 233, 0.12), transparent 55%),
-    linear-gradient(180deg, #f3f6ff 0%, #f7f3ff 60%, #fdf4fa 100%);
-  --surface: #ffffff;
-  --surface-2: #f0f3fb;
-  --ink: #0f172a;
-  --ink-2: #475569;
-  --muted: #5b6b82;
-  --grid: #e3e8f4;
-  --axis: #c5cde0;
-  --line: rgba(79, 70, 229, 0.14);
+  --plane: #f6f1ea;
+  --plane-bg: #f6f1ea;
+  --surface: #fffdf9;
+  --surface-2: #efe9df;
+  --ink: #1e1915;
+  --ink-2: #4a423a;
+  --muted: #675d53;
+  --grid: #e6dfd3;
+  --axis: #cfc6b8;
+  --line: rgba(30, 25, 21, 0.1);
 
-  --card-bg: #ffffff;
-  --card-border: rgba(79, 70, 229, 0.14);
-  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 28px -14px rgba(79, 70, 229, 0.28);
-  --card-blur: 0px;
-  --card-edge: linear-gradient(transparent, transparent);
+  --card-bg: #fffdf9;
+  --card-border: rgba(30, 25, 21, 0.1);
 
-  --accent: #4f46e5;
-  --accent-2: #0ea5e9;
-  --accent-grad: linear-gradient(135deg, #4f46e5, #7c3aed);
-  --btn-bg: linear-gradient(135deg, #4f46e5, #6d28d9);
-  --btn-ink: #ffffff;
-  --btn-shadow: 0 6px 16px -8px rgba(79, 70, 229, 0.6);
+  --accent: #e2542a;
+  --accent-ink: #b8431d;
+  --btn-bg: #ff6b3d;
+  --btn-ink: #1a110c;
 
-  --hero-bg: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #a21caf 100%);
-  --hero-border: rgba(255, 255, 255, 0.18);
-  --hero-shadow: 0 18px 40px -18px rgba(79, 70, 229, 0.55);
-  --hero-ink: #ffffff;
-  --hero-ink-2: rgba(255, 255, 255, 0.84);
-  --nav-active-bg: rgba(79, 70, 229, 0.1);
+  /* The Today answer panel is one flat field of colour. */
+  --hero-bg: #1e1915;
+  --hero-ink: #f6efe8;
+  --hero-ink-2: rgba(246, 239, 232, 0.78);
+  --nav-active-bg: rgba(30, 25, 21, 0.07);
 
   --s-calories: #2a78d6;
   --s-protein: #eb6834;
@@ -63,50 +58,41 @@
   --s-steps: #6250d6;
   --s-weight: #008300;
 
-  --good: #0ca30c;
-  --good-ink: #006300;
-  --warning: #fab219;
-  --warning-ink: #8a5a00;
-  --serious: #ec835a;
-  --critical: #d03b3b;
+  --good: #3e7d5a;
+  --good-ink: #2f6b4b;
+  --warning: #d99100;
+  --warning-ink: #855400;
+  --serious: #d9622f;
+  --critical: #c93b3b;
   --critical-ink: #b42323;
 }
 
-/* ---------- Dark ---------- */
+/* ---------- Dark "Graphite" ---------- */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane: #070a12;
-  --plane-bg:
-    radial-gradient(900px 480px at 85% -10%, rgba(56, 189, 248, 0.12), transparent 60%),
-    radial-gradient(700px 420px at 0% 0%, rgba(129, 140, 248, 0.1), transparent 55%), #070a12;
-  --surface: #0e131f;
-  --surface-2: #151c2c;
-  --ink: #e8edf7;
-  --ink-2: #b4bed2;
-  --muted: #8c97ad;
-  --grid: #1b2436;
-  --axis: #2a3550;
-  --line: rgba(148, 163, 184, 0.16);
+  --plane: #0e0f11;
+  --plane-bg: #0e0f11;
+  --surface: #17191c;
+  --surface-2: #212428;
+  --ink: #eceff1;
+  --ink-2: #b4bbc2;
+  --muted: #8d959d;
+  --grid: #24282d;
+  --axis: #343a41;
+  --line: rgba(255, 255, 255, 0.08);
 
-  --card-bg: #0e131f;
-  --card-border: rgba(148, 163, 184, 0.16);
-  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 30px -16px rgba(0, 0, 0, 0.7);
-  --card-blur: 0px;
-  --card-edge: linear-gradient(transparent, transparent);
+  --card-bg: #17191c;
+  --card-border: rgba(255, 255, 255, 0.07);
 
-  --accent: #38bdf8;
-  --accent-2: #818cf8;
-  --accent-grad: linear-gradient(135deg, #38bdf8, #818cf8);
-  --btn-bg: linear-gradient(135deg, #38bdf8, #60a5fa);
-  --btn-ink: #04121c;
-  --btn-shadow: 0 6px 18px -8px rgba(56, 189, 248, 0.55);
+  --accent: #ff6b3d;
+  --accent-ink: #ff7a4f;
+  --btn-bg: #ff6b3d;
+  --btn-ink: #1a110c;
 
-  --hero-bg: linear-gradient(135deg, #0c3a5b 0%, #1b2f7a 55%, #3a1f7c 100%);
-  --hero-border: rgba(125, 211, 252, 0.25);
-  --hero-shadow: 0 18px 40px -20px rgba(56, 189, 248, 0.35);
-  --hero-ink: #f4f8ff;
-  --hero-ink-2: rgba(244, 248, 255, 0.82);
-  --nav-active-bg: rgba(56, 189, 248, 0.14);
+  --hero-bg: #212428;
+  --hero-ink: #eceff1;
+  --hero-ink-2: rgba(236, 239, 241, 0.78);
+  --nav-active-bg: rgba(255, 255, 255, 0.07);
 
   --s-calories: #3987e5;
   --s-protein: #d95926;
@@ -116,60 +102,44 @@
   --s-steps: #9085e9;
   --s-weight: #2a9d2a;
 
-  --good: #0ca30c;
-  --good-ink: #3cc23c;
-  --warning: #fab219;
-  --warning-ink: #fab219;
+  --good: #7fd36b;
+  --good-ink: #7fd36b;
+  --warning: #ffb020;
+  --warning-ink: #ffb020;
   --serious: #ec835a;
-  --critical: #d03b3b;
-  --critical-ink: #ef6b6b;
+  --critical: #ff5d4d;
+  --critical-ink: #ff7a8a;
 }
 
-/* ---------- Aurora ---------- */
-:root[data-theme="aurora"] {
+/* ---------- Ember (the showcase theme) ---------- */
+:root[data-theme="ember"] {
   color-scheme: dark;
-  --plane: #1a0f4a;
-  --plane-bg:
-    radial-gradient(1000px 600px at 8% -8%, rgba(34, 211, 238, 0.3), transparent 62%),
-    radial-gradient(900px 600px at 100% 4%, rgba(236, 72, 153, 0.28), transparent 58%),
-    radial-gradient(900px 500px at 50% 112%, rgba(124, 58, 237, 0.32), transparent 60%),
-    linear-gradient(160deg, #150d3a 0%, #1d1055 45%, #2a0f5e 100%);
-  /* Opaque surfaces for inputs, table heads and rows that sit inside a glass card. */
-  --surface: #1e1658;
-  --surface-2: #2a2070;
-  --ink: #f5f3ff;
-  --ink-2: #cfc9f5;
-  --muted: #b0a9e6;
-  --grid: #3a2f86;
-  --axis: #52479f;
-  --line: rgba(255, 255, 255, 0.16);
+  --plane: #14110f;
+  --plane-bg: #14110f;
+  --surface: #1c1815;
+  --surface-2: #27211c;
+  --ink: #f6efe8;
+  --ink-2: #c9bdb1;
+  --muted: #a2988e;
+  --grid: #2b2520;
+  --axis: #3d352e;
+  --line: rgba(255, 237, 220, 0.09);
 
-  /* Dark-tinted glass (not white-tinted): keeps text ≥ 5.8:1 even over the brightest glow. */
-  --card-bg: rgba(20, 12, 60, 0.62);
-  --card-border: rgba(196, 181, 253, 0.22);
-  --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 16px 40px -18px rgba(124, 58, 237, 0.55);
-  --card-blur: 14px;
-  /* A thin glowing edge along the top of each glass card. */
-  --card-edge: linear-gradient(90deg, transparent 4%, rgba(34, 211, 238, 0.75) 30%, rgba(244, 114, 182, 0.75) 70%, transparent 96%);
-  --ring-glow: drop-shadow(0 0 7px currentColor);
+  --card-bg: #1c1815;
+  --card-border: rgba(255, 237, 220, 0.07);
 
-  --accent: #22d3ee;
-  --accent-2: #f472b6;
-  --accent-grad: linear-gradient(90deg, #22d3ee, #a78bfa 55%, #f472b6);
-  --btn-bg: linear-gradient(135deg, #22d3ee, #a78bfa);
-  --btn-ink: #0b0630;
-  --btn-shadow: 0 8px 22px -8px rgba(167, 139, 250, 0.7);
+  --accent: #ff6b3d;
+  --accent-ink: #ff7a4f;
+  --btn-bg: #ff6b3d;
+  --btn-ink: #1a110c;
 
-  --hero-bg:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.42) 0%, rgba(167, 139, 250, 0.44) 50%, rgba(244, 114, 182, 0.42) 100%),
-    linear-gradient(rgba(20, 12, 60, 0.6), rgba(20, 12, 60, 0.6));
-  --hero-border: rgba(196, 181, 253, 0.35);
-  --hero-shadow: 0 0 70px -10px rgba(167, 139, 250, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  --hero-ink: #ffffff;
-  --hero-ink-2: rgba(255, 255, 255, 0.84);
-  --nav-active-bg: rgba(167, 139, 250, 0.2);
+  /* Deep ember field for the Today answer panel. */
+  --hero-bg: #2b1810;
+  --hero-ink: #f6efe8;
+  --hero-ink-2: rgba(246, 239, 232, 0.78);
+  --nav-active-bg: rgba(255, 237, 220, 0.08);
 
-  /* The validated dark set (checked on #221a62 and #1e1658). */
+  /* The validated dark set (checked on #1c1815). */
   --s-calories: #3987e5;
   --s-protein: #d95926;
   --s-carbs: #199e70;
@@ -178,13 +148,13 @@
   --s-steps: #9085e9;
   --s-weight: #2a9d2a;
 
-  --good: #22c55e;
-  --good-ink: #4ade80;
-  --warning: #fbbf24;
-  --warning-ink: #fbbf24;
+  --good: #b8f04a;
+  --good-ink: #b8f04a;
+  --warning: #ffb020;
+  --warning-ink: #ffb020;
   --serious: #fb923c;
-  --critical: #f0506e;
-  --critical-ink: #fb7185;
+  --critical: #ff5d4d;
+  --critical-ink: #ff8070;
 }
 
 @theme inline {
@@ -197,7 +167,7 @@
   --color-grid: var(--grid);
   --color-line: var(--line);
   --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
+  --color-accent-ink: var(--accent-ink);
   --color-good: var(--good);
   --color-good-ink: var(--good-ink);
   --color-warning: var(--warning);
@@ -205,37 +175,27 @@
   --color-serious: var(--serious);
   --color-critical: var(--critical);
   --color-critical-ink: var(--critical-ink);
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-ink-2: var(--hero-ink-2);
+  /* next/font sets --font-ui / --font-figures on <html>; the stacks are the fallback. */
+  --font-sans: var(--font-ui), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-figures), var(--font-ui), system-ui, sans-serif;
 }
 
 /* Reusable looks, so components never hard-code a theme's colours. */
 @utility card {
-  background: var(--card-edge) top / 100% 1px no-repeat, var(--card-bg);
+  background: var(--card-bg);
   border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow);
-  -webkit-backdrop-filter: blur(var(--card-blur));
-  backdrop-filter: blur(var(--card-blur));
-}
-
-/* Brand-coloured text (gradient in each theme's accent colours). */
-@utility text-gradient {
-  background-image: var(--accent-grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 
 @utility btn-primary {
   background: var(--btn-bg);
   color: var(--btn-ink);
-  box-shadow: var(--btn-shadow);
 }
 
 @utility hero {
   background: var(--hero-bg);
   color: var(--hero-ink);
-  border: 1px solid var(--hero-border);
-  box-shadow: var(--hero-shadow);
 }
 
 body {
@@ -248,7 +208,7 @@ body {
 
 /* Visible keyboard focus everywhere (mouse clicks don't show it). */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
   border-radius: 4px;
 }
