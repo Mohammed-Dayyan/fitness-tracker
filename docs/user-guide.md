@@ -12,6 +12,8 @@
 3. **ChatGPT replies with JSON.** Copy it.
 4. **In the tracker: Data → Import.** Paste the JSON (or drop a `.json` file),
    select **Validate & preview**, review what will happen, then select **Confirm import**.
+   A message at the top confirms it ("Imported: 3 created, 1 updated"), the pasted
+   text clears, and the **Import applied** result stays on the page.
 5. Check **Today** for the verdict, totals and timeline.
 
 An import can be up to **10 MB**; anything larger is refused with a message naming the limit
@@ -384,7 +386,7 @@ the top: the date with the day's status and one headline sentence, then a
 strip of six small markers (calories, protein, carbs, fat, fiber, steps). Below
 it, one panel leads with calories (the figure, what remains, a bar), then
 protein, carbs, fat and fiber against their targets. Beside it sit steps and
-weight, with the **Log steps** field right there. Then your meals, the status
+weight, with the **Log today** card (steps and weight) right there. A **Log data** button in the title row opens the Data page. Then your meals, the status
 details (reliability, next steps, and **Why this status**, a collapsed list of
 the per-measure reasons), training and the last 7 days.
 
@@ -422,10 +424,20 @@ A chart needs at least two days with data, and the weight trend needs at
 least two weigh-ins. Adherence percentages show their denominator and only
 count days with complete nutrition and a target.
 
-**Logging steps without ChatGPT.** On Today there is a **Log steps** card with
-one field. It saves steps for the day you are viewing, so go to yesterday and
-the same card logs or updates yesterday. Whole numbers 0–200,000; saving
-replaces that day's count and keeps weight and notes. Future days are disabled.
+**Logging steps and weight without ChatGPT.** On Today, the **Log today** card
+has a Steps field and a Weight (kg) field. Fill in one or both and select **Save**.
+A blank field is ignored: it never clears a value already saved. It saves for the
+day you are viewing, so use the **previous-day arrow** to go to a day you forgot
+and log it there. Steps are whole numbers 0–200,000; weight is in kg. Saving
+replaces that day's value for the field(s) you filled in (the confirmation says
+what it replaced) and keeps everything else on the day. A toast at the top of
+the page confirms the save; mistakes are shown next to the field. Future days
+are disabled.
+
+**Weight log.** On **Trends**, under the weight chart, the **Weight log** lists every
+day in the selected range, newest first: weight, the change since the previous
+weigh-in in that range, and the 7-day average. A day with no weigh-in shows an
+**Add** link that opens that day on Today so you can log it.
 
 **History rows** open the day when you click anywhere on the row.
 

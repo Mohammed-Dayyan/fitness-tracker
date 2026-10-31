@@ -3,6 +3,7 @@ import { BottomNav, SideNav } from "@/components/nav";
 import { LogoutButton } from "@/components/logout-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { SessionKeepAlive } from "@/components/session-keepalive";
+import { Toaster } from "@/components/toaster";
 
 // The shell is static (no session read), so it prerenders. Every page below
 // validates the session itself inside its own <Suspense> boundary.
@@ -43,6 +44,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       </div>
       <BottomNav />
       <SessionKeepAlive />
+      <Toaster />
     </div>
   );
 }

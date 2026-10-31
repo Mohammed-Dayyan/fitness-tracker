@@ -2,98 +2,142 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui";
+import { fmtDateMedium, fmtNumber } from "@/lib/shared/format";
 
-type Status = { kind: "idle" } | { kind: "saving" } | { kind: "ok"; message: string } | { kind: "error"; message: string };
+type FieldErrors = Record<string, string>;
+
+const input =
+  "block w-full min-w-0 rounded-[10px] border border-line bg-surface px-3 py-2 text-sm text-ink aria-[invalid=true]:border-critical";
 
 /**
- * Steps-only quick log for the day being viewed (no ChatGPT needed). Render it
- * with key={date} so navigating to another day never carries a typed value or
- * a message over to it.
+ * "Log today" for the day being viewed: steps, weight or both, no ChatGPT
+ * needed. A blank field is ignored (it never clears what is stored). Render it
+ * with key={date} so navigating to another day never carries typed values or
+ * errors over to it. Success is a toast; errors stay next to the field.
  */
-export function StepsQuickLog({ date, today, current, embedded = false }: { date: string; today: string; current: number | null; embedded?: boolean }) {
+export function DailyQuickLog({
+  date,
+  today,
+  steps: currentSteps,
+  weightKg,
+  embedded = false,
+}: {
+  date: string;
+  today: string;
+  steps: number | null;
+  weightKg: number | null;
+  embedded?: boolean;
+}) {
   const router = useRouter();
   const [steps, setSteps] = useState("");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [error, setError] = useState<string | null>(null);
+  const [weight, setWeight] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [failure, setFailure] = useState<string | null>(null);
   const future = date > today;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setStatus({ kind: "saving" });
-    setError(null);
+    setSaving(true);
+    setErrors({});
+    setFailure(null);
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ section: "steps", date, steps }),
+        body: JSON.stringify({ section: "daily", date, steps, weight_kg: weight }),
       });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string; fieldErrors?: Record<string, string> } | null;
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string; fieldErrors?: FieldErrors } | null;
       if (res.ok && data?.ok) {
         setSteps("");
-        setStatus({ kind: "ok", message: data.message ?? "Saved." });
+        setWeight("");
+        toast.success(data.message ?? "Saved.");
         router.refresh();
       } else {
-        setError(data?.fieldErrors?.steps ?? data?.fieldErrors?.date ?? null);
-        setStatus({ kind: "error", message: data?.error ?? "Could not save. Nothing was changed." });
+        setErrors(data?.fieldErrors ?? {});
+        setFailure(data?.error ?? "Could not save. Nothing was changed.");
       }
     } catch {
-      setStatus({ kind: "error", message: "Network error. Nothing was saved." });
+      setFailure("Network error. Nothing was saved.");
+    } finally {
+      setSaving(false);
     }
   }
 
-  const body = (
-    <>
-      {future ? (
-        <p className="text-sm text-ink-2">Steps can&apos;t be logged for a day that hasn&apos;t happened yet.</p>
-      ) : (
-        <form onSubmit={onSubmit} noValidate className="space-y-3">
-          <div>
-            <label htmlFor="quick-steps" className="block text-sm font-medium text-ink">
-              Steps for {date === today ? "today" : date}
-            </label>
-            <div className="mt-1 flex gap-2">
-              <input
-                id="quick-steps"
-                inputMode="numeric"
-                autoComplete="off"
-                value={steps}
-                onChange={(e) => setSteps(e.target.value)}
-                placeholder={current != null ? `Now ${current.toLocaleString("en-US")}` : "e.g. 8500"}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? "quick-steps-error" : undefined}
-                className="block w-full min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink aria-[invalid=true]:border-critical"
-              />
-              <button type="submit" disabled={status.kind === "saving"} className="inline-flex items-center gap-2 rounded-lg btn-primary px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60">
-                {status.kind === "saving" && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
-                Save
-              </button>
-            </div>
-            {error && (
-              <p id="quick-steps-error" className="mt-1 text-xs font-medium text-critical-ink">
-                {error}
-              </p>
-            )}
-            <p className="mt-1 text-xs text-ink-2">Saving replaces this day&apos;s step count. Weight and notes are kept.</p>
-          </div>
-          {status.kind === "ok" && (
-            <p role="status" className="flex items-center gap-2 text-sm text-good-ink">
-              <CheckCircle2 aria-hidden className="size-4" />
-              {status.message}
+  const title = date === today ? "Log today" : `Log ${fmtDateMedium(date)}`;
+  const body = future ? (
+    <p className="text-sm text-ink-2">Nothing can be logged for a day that hasn&apos;t happened yet.</p>
+  ) : (
+    <form onSubmit={onSubmit} noValidate className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="quick-steps" className="block text-sm font-medium text-ink">
+            Steps
+          </label>
+          <input
+            id="quick-steps"
+            inputMode="numeric"
+            autoComplete="off"
+            value={steps}
+            onChange={(e) => setSteps(e.target.value)}
+            placeholder={currentSteps != null ? `Now ${fmtNumber(currentSteps)}` : "e.g. 8500"}
+            aria-invalid={errors.steps ? true : undefined}
+            aria-describedby={errors.steps ? "quick-steps-error" : undefined}
+            className={`mt-1 ${input}`}
+          />
+          {errors.steps && (
+            <p id="quick-steps-error" className="mt-1 text-xs font-medium text-critical-ink">
+              {errors.steps}
             </p>
           )}
-          {status.kind === "error" && (
-            <p role="alert" className="flex items-center gap-2 text-sm text-critical-ink">
-              <TriangleAlert aria-hidden className="size-4" />
-              {status.message}
+        </div>
+        <div>
+          <label htmlFor="quick-weight" className="block text-sm font-medium text-ink">
+            Weight (kg)
+          </label>
+          <input
+            id="quick-weight"
+            inputMode="decimal"
+            autoComplete="off"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder={weightKg != null ? `Now ${fmtNumber(weightKg, 1)}` : "e.g. 79.5"}
+            aria-invalid={errors.weight_kg ? true : undefined}
+            aria-describedby={errors.weight_kg ? "quick-weight-error" : undefined}
+            className={`mt-1 ${input}`}
+          />
+          {errors.weight_kg && (
+            <p id="quick-weight-error" className="mt-1 text-xs font-medium text-critical-ink">
+              {errors.weight_kg}
             </p>
           )}
-        </form>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-[10px] btn-primary px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60">
+          {saving && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
+          Save
+        </button>
+        <p className="text-xs text-ink-2">Fill in one or both. A blank field keeps what is saved.</p>
+      </div>
+      {failure && (
+        <p role="alert" className="flex items-center gap-2 text-sm text-critical-ink">
+          <TriangleAlert aria-hidden className="size-4" />
+          {failure}
+        </p>
       )}
-    </>
+    </form>
   );
-  // Embedded: lives inside another panel (Today's activity panel), under a quiet divider.
-  if (embedded) return <div className="border-t border-line pt-4">{body}</div>;
-  return <Card title="Log steps">{body}</Card>;
+  if (embedded) {
+    return (
+      <div className="border-t border-line pt-4">
+        <h3 className="mb-3 text-[13px] font-medium text-ink-2">{title}</h3>
+        {body}
+      </div>
+    );
+  }
+  return <Card title={title}>{body}</Card>;
 }

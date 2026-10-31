@@ -11,7 +11,8 @@ import { getDayContext } from "@/lib/server/day";
 import { DayWatcher } from "@/components/day-watcher";
 import { getTrends } from "@/lib/server/trends";
 import { resolveTrendRange } from "@/lib/shared/trend-range";
-import { fmtDateShort, fmtNumber } from "@/lib/shared/format";
+import { buildWeightLog } from "@/lib/shared/weight-log";
+import { fmtDateMedium, fmtDateShort, fmtNumber } from "@/lib/shared/format";
 
 export const metadata: Metadata = { title: "Trends" };
 
@@ -149,6 +150,52 @@ async function TrendsView({ searchParams }: { searchParams: PageProps<"/trends">
               )}
             </Card>
           </div>
+
+          <Card title="Weight log">
+            <p className="mb-3 text-xs text-ink-2">
+              Every day in the range, newest first. Change is since the previous weigh-in in this range. A day with no weigh-in
+              has an Add link that opens that day so you can log it.
+            </p>
+            {t.weight.weigh_ins === 0 ? (
+              <EmptyState icon={Scale} title="No weigh-ins in this range">
+                Log your weight on the <Link href="/" className="font-medium underline">Today</Link> page.
+              </EmptyState>
+            ) : (
+              <div className="-mx-5 max-h-96 overflow-auto">
+                <table className="tabular w-full min-w-[420px] text-left text-sm">
+                  <caption className="sr-only">Weight by day, newest first</caption>
+                  <thead className="text-xs text-ink-2">
+                    <tr className="border-b border-line">
+                      <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-5 py-2 font-medium">Date</th>
+                      <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 text-right font-medium">Weight</th>
+                      <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-2 py-2 text-right font-medium">Change</th>
+                      <th scope="col" className="sticky top-0 bg-[var(--card-bg)] px-5 py-2 text-right font-medium">7-day avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buildWeightLog(t.days).map((r) => (
+                      <tr key={r.date} className="border-b border-line last:border-0">
+                        <th scope="row" className="px-5 py-2 text-left font-medium text-ink">
+                          {fmtDateMedium(r.date)}
+                        </th>
+                        {r.weight_kg == null ? (
+                          <td colSpan={2} className="px-2 py-2 text-right text-muted">
+                            – <Link href={`/?date=${r.date}`} className="ml-2 font-medium text-accent-ink underline" aria-label={`Add weight for ${fmtDateMedium(r.date)}`}>Add</Link>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-2 py-2 text-right font-medium text-ink">{fmtNumber(r.weight_kg, 1)} kg</td>
+                            <td className="px-2 py-2 text-right text-ink-2">{r.change_kg == null ? "–" : `${r.change_kg > 0 ? "+" : ""}${fmtNumber(r.change_kg, 1)} kg`}</td>
+                          </>
+                        )}
+                        <td className="px-5 py-2 text-right text-ink-2">{r.weight_avg7 == null ? "–" : `${fmtNumber(r.weight_avg7, 1)} kg`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
 
           <Card title="Weekly averages">
             <p className="mb-2 text-xs text-ink-2">

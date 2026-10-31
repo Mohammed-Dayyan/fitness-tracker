@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJsonBody, requireJsonContentType, withOwner } from "@/lib/server/http";
 import { getDayContext } from "@/lib/server/day";
-import { saveProfile, saveSteps, saveTargets, saveWeighIn } from "@/lib/server/settings";
+import { saveDaily, saveProfile, saveSteps, saveTargets, saveWeighIn } from "@/lib/server/settings";
 
 /**
- * POST { "section": "profile" | "weight" | "steps" | "targets", ...fields }.
+ * POST { "section": "profile" | "weight" | "steps" | "daily" | "targets", ...fields }.
  * Writes go through the import engine (same validation and history rules).
  */
 export const POST = withOwner(async (req, { ownerId }) => {
@@ -21,10 +21,12 @@ export const POST = withOwner(async (req, { ownerId }) => {
         ? await saveWeighIn(ownerId, value, await today())
         : value.section === "steps"
           ? await saveSteps(ownerId, value, await today())
-          : value.section === "targets"
-            ? await saveTargets(ownerId, value)
-            : null;
-  if (!result) return jsonError(400, 'section must be "profile", "weight", "steps" or "targets".');
+          : value.section === "daily"
+            ? await saveDaily(ownerId, value, await today())
+            : value.section === "targets"
+              ? await saveTargets(ownerId, value)
+              : null;
+  if (!result) return jsonError(400, 'section must be "profile", "weight", "steps", "daily" or "targets".');
   return result.ok
     ? NextResponse.json(result)
     : NextResponse.json(result, { status: 422 });

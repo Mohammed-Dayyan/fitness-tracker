@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info, Upload } from "lucide-react";
 import { TargetBarChart } from "@/components/charts/target-bar-chart";
 import { CopyButton, DateNav } from "@/components/client-actions";
-import { StepsQuickLog } from "@/components/quick-log";
+import { DailyQuickLog } from "@/components/quick-log";
 import { ActivityCard, MealTimeline, SERIES, TrainingCard, WhyCard } from "@/components/dashboard";
 import { DayWatcher } from "@/components/day-watcher";
 import { AnswerPanel, TodayTitle } from "@/components/today-hero";
@@ -42,6 +42,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           <>
             <DateNav date={date} prev={addDays(date, -1)} next={addDays(date, 1)} today={today} />
             <CopyButton url={`/api/export?scope=day&date=${date}`} label="Copy day JSON" json />
+            <Link href="/data" className="inline-flex h-9 items-center gap-2 rounded-[10px] btn-primary px-3 text-sm font-medium hover:opacity-90">
+              <Upload aria-hidden className="size-4" />
+              Log data
+            </Link>
           </>
         }
       />
@@ -62,7 +66,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           summary={view.summary}
           measurements={view.measurements}
           note={view.note}
-          quickLog={<StepsQuickLog key={date} date={date} today={today} current={view.summary.steps} embedded />}
+          quickLog={<DailyQuickLog key={date} date={date} today={today} steps={view.summary.steps} weightKg={view.summary.weight_kg} embedded />}
         />
       </div>
 
