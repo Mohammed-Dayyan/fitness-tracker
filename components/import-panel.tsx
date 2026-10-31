@@ -3,8 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { COPY_FAILED_MESSAGE, copyText } from "@/lib/client/clipboard";
 import { fmtDateMedium } from "@/lib/shared/format";
+import { importToastMessage } from "@/lib/shared/import-summary";
 import { formatBytes, MAX_IMPORT_BYTES } from "@/lib/shared/limits";
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, ClipboardCopy, FileUp, Loader2, Search, Upload, X } from "lucide-react";
 
@@ -270,8 +272,12 @@ export function ImportPanel({ today }: { today: string }) {
     try {
       const { status, data } = await post("/api/import/commit", JSON.stringify({ payload, preview_token: preview.preview_token }));
       if ("ok" in data && data.ok) {
+        // The result block below stays as the permanent record; the pasted text is spent, so it goes.
         setResult(data);
         setPreview(null);
+        setText("");
+        setFileName(null);
+        toast.success(importToastMessage(data.counts));
         router.refresh();
       } else if (status === 409 && (data as Failure).preview) {
         setPreview((data as Failure).preview!);
@@ -344,7 +350,7 @@ export function ImportPanel({ today }: { today: string }) {
           {busy === "preview" ? <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" /> : <Search aria-hidden className="size-4" />}
           Validate & preview
         </button>
-        {(text || preview || result) && (
+        {(text || preview) && (
           <button type="button" onClick={() => { setFileName(null); reset(""); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink">
             <X aria-hidden className="size-4" />
             Clear
@@ -419,6 +425,7 @@ export function ImportPanel({ today }: { today: string }) {
             <p className="flex items-center gap-2 text-sm font-semibold text-good-ink">
               <CheckCircle2 aria-hidden className="size-4" />
               Import applied
+              <span className="font-normal text-ink-2">· last import</span>
             </p>
             <Counts counts={result.counts} />
             {touchedDates.length > 0 && (

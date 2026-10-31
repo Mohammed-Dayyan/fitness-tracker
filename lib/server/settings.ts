@@ -125,6 +125,56 @@ export async function saveSteps(ownerId: string, body: Record<string, unknown>, 
 }
 
 /**
+ * The Today "Log today" card: steps, weight or both for one explicit date, in a
+ * single write. A blank field is ignored (it never clears what is stored), so
+ * saving steps leaves the weight alone and the reverse. Weight and steps not
+ * named, and the day's notes, are kept. Existing values for the date are
+ * replaced and the message says so.
+ */
+export async function saveDaily(ownerId: string, body: Record<string, unknown>, today: string): Promise<SettingsResult> {
+  const fieldErrors: FieldErrors = {};
+  const date = dateSchema.safeParse(body.date);
+  if (!date.success) fieldErrors.date = "Enter a valid date";
+  else if (date.data > today) fieldErrors.date = "Date can't be in the future";
+
+  let steps: number | undefined;
+  if (!blank(body.steps)) {
+    const text = typeof body.steps === "string" ? body.steps.replace(/[,\s]/g, "") : body.steps;
+    if (typeof text === "string" && !/^\d+$/.test(text)) fieldErrors.steps = "Enter a whole number";
+    else {
+      const r = parseField(KINDS.daily_activity.fields.steps, text);
+      if ("error" in r) fieldErrors.steps = r.error;
+      else if (!Number.isInteger(r.value)) fieldErrors.steps = "Enter a whole number";
+      else steps = r.value as number;
+    }
+  }
+  let kg: number | undefined;
+  if (!blank(body.weight_kg)) {
+    const r = parseField(KINDS.daily_activity.fields.weight_kg, body.weight_kg);
+    if ("error" in r) fieldErrors.weight_kg = r.error;
+    else kg = r.value as number;
+  }
+  if (blank(body.steps) && blank(body.weight_kg) && !fieldErrors.date) fieldErrors.steps = "Enter steps, weight or both";
+  if (Object.keys(fieldErrors).length || !date.success) {
+    return { ok: false, error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  const previous = await prisma.dailyActivity.findFirst({ where: { ownerId, date: dateToDb(date.data) }, select: { steps: true, weightKg: true } });
+  const record: Record<string, unknown> = { date: date.data };
+  if (steps !== undefined) record.steps = steps;
+  if (kg !== undefined) record.weight_kg = kg;
+  const res = await applyImportDirect(ownerId, { schema_version: SCHEMA_VERSION, daily_activity: [record] });
+  if (!res.ok) return { ok: false, error: `${res.error} ${res.errors.join(" ")}`.trim(), fieldErrors: {} };
+
+  const saved = [steps !== undefined ? `${steps.toLocaleString("en-US")} steps` : null, kg !== undefined ? `${kg} kg` : null].filter(Boolean).join(" and ");
+  const replaced = [
+    steps !== undefined && previous?.steps != null && previous.steps !== steps ? `${previous.steps.toLocaleString("en-US")} steps` : null,
+    kg !== undefined && previous?.weightKg != null && previous.weightKg !== kg ? `${previous.weightKg} kg` : null,
+  ].filter(Boolean);
+  return { ok: true, message: `${saved} recorded for ${date.data}.${replaced.length ? ` It replaced ${replaced.join(" and ")}.` : ""}` };
+}
+
+/**
  * Targets form: creates (or, for the same date, updates) the target version
  * effective from the chosen date. Blank fields are omitted, so a new version
  * copies them from the version in effect before it, exactly like an import.

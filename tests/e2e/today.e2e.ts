@@ -94,8 +94,7 @@ describe.skipIf(!chromeAvailable)("Today page", () => {
     await page.fill("#quick-steps", "12,345");
     await page.getByRole("button", { name: "Save" }).click();
     await page.getByText(`12,345 steps recorded for ${yesterday}.`).waitFor();
-    await page.waitForLoadState("networkidle");
-    expect(await main.innerText()).toContain("12,345");
+    await expect.poll(async () => main.innerText(), { timeout: 15_000 }).toContain("12,345");
     expect(await main.innerText()).toContain("79.5 kg");
     expect(await page.locator("#quick-steps").inputValue()).toBe("");
 
@@ -107,7 +106,7 @@ describe.skipIf(!chromeAvailable)("Today page", () => {
     // Future days can't be logged.
     await page.goto(`${server.url}/?date=${addDays(today, 2)}`, { waitUntil: "networkidle" });
     expect(await page.locator("#quick-steps").count()).toBe(0);
-    await page.getByText("Steps can't be logged for a day that hasn't happened yet.").waitFor();
+    await page.getByText("Nothing can be logged for a day that hasn't happened yet.").waitFor();
     await ctx.close();
   }, 120_000);
 });
