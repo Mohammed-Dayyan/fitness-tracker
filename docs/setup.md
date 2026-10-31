@@ -48,7 +48,6 @@ don't reuse a real password.
 | `DATABASE_URL` | yes | Connection string the app uses |
 | `TEST_DATABASE_URL` | for `npm test` | Separate test database. Its name **must end in `_test`** |
 | `DIRECT_DATABASE_URL` | no | Non-pooled URL for migrations (production with a pooler; see [deployment](deployment.md)) |
-| `DATABASE_POOL_MAX` | no | Max connections per app process (set on Vercel) |
 | `SESSION_TTL_DAYS` | no, default `30` | Sliding session lifetime |
 | `APP_ORIGIN` | no | Exact public origin for the CSRF check (see [security](security.md)) |
 | `TRUST_PROXY` | no, default `false` | Leave `false` locally (see [security](security.md#rate-limiting-and-trusted-proxies)) |

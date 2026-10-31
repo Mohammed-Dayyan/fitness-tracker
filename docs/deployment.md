@@ -205,7 +205,6 @@ the Data API roles from reading the tables.
 | Variable | Value |
 |---|---|
 | `DATABASE_URL` | Transaction pooler URL (port `6543`, with `?sslmode=require`) |
-| `DATABASE_POOL_MAX` | `3` |
 | `TRUST_PROXY` | `true`: Vercel sets `X-Forwarded-For` itself (see [security](security.md#rate-limiting-and-trusted-proxies)) |
 | `SESSION_TTL_DAYS` | `30` (optional) |
 | `APP_ORIGIN` | `https://<your-production-domain>` (optional; recommended once you have one fixed domain) |
@@ -271,7 +270,7 @@ Load both connection strings as described in [2a](#2a-keep-the-production-connec
 - [ ] Migrations applied with the session/direct URL
 - [ ] Production password set with `set-password`
 - [ ] Data API disabled, and the hardening SQL run (all tables `rls_enabled = t`)
-- [ ] Vercel env (Production scope): `DATABASE_URL` (port 6543), `DATABASE_POOL_MAX=3`, `TRUST_PROXY=true`, optional `APP_ORIGIN`
+- [ ] Vercel env (Production scope): `DATABASE_URL` (port 6543), `TRUST_PROXY=true`, optional `APP_ORIGIN`
 - [ ] Preview deployments can't reach the production database
 - [ ] Verification list passed (redirect, cookie flags, headers, import, rate limit, unlock)
 - [ ] First production backup taken with `BACKUP_DATABASE_URL` (file is `fitness-remote-…`; output said REMOTE) and stored encrypted

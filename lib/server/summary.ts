@@ -52,8 +52,19 @@ function sumKnown(values: unknown[]): number | null {
   return known.length ? round(known.reduce((a, b) => a + b, 0)) : null;
 }
 
-/** Totals derived from stored entries for every date in [from, to]. */
-export async function computeDailySummaries(ownerId: string, from: string, to: string): Promise<DailySummary[]> {
+/** The stored records for a date range, as loaded once and shared by everything that needs them. */
+export type SummaryInputs = {
+  foods: JsonRecord[];
+  workouts: JsonRecord[];
+  cardio: JsonRecord[];
+  activity: JsonRecord[];
+  measurements: JsonRecord[];
+  notes: JsonRecord[];
+  targets: JsonRecord[];
+};
+
+/** One round of parallel reads for [from, to]: every record kind the daily totals need. */
+export async function loadSummaryInputs(ownerId: string, from: string, to: string): Promise<SummaryInputs> {
   const range = { from, to };
   const [foods, workouts, cardio, activity, measurements, notes, targets] = await Promise.all([
     listRecords(ownerId, "food_entries", range),
@@ -64,6 +75,17 @@ export async function computeDailySummaries(ownerId: string, from: string, to: s
     listRecords(ownerId, "daily_notes", range),
     listTargets(ownerId),
   ]);
+  return { foods, workouts, cardio, activity, measurements, notes, targets };
+}
+
+/** Totals derived from stored entries for every date in [from, to]. */
+export async function computeDailySummaries(ownerId: string, from: string, to: string): Promise<DailySummary[]> {
+  return summariesFromInputs(await loadSummaryInputs(ownerId, from, to), from, to);
+}
+
+/** Pure: the same totals from records already loaded (no database access). */
+export function summariesFromInputs(inputs: SummaryInputs, from: string, to: string): DailySummary[] {
+  const { foods, workouts, cardio, activity, measurements, notes, targets } = inputs;
 
   const byDate = <T extends JsonRecord>(rows: T[]) => {
     const m = new Map<string, T[]>();

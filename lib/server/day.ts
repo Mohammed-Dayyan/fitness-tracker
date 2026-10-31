@@ -1,7 +1,7 @@
 import "server-only";
 import { addDays, isValidDateString, msUntilNextDay, todayInTimeZone } from "@/lib/shared/dates";
-import { getTimezone, listRecords, listWorkoutsWithSets } from "@/lib/server/repo";
-import { computeDailySummaries, NUTRIENTS, type DailySummary, type Nutrient } from "@/lib/server/summary";
+import { getTimezone } from "@/lib/server/repo";
+import { loadSummaryInputs, NUTRIENTS, summariesFromInputs, type DailySummary, type Nutrient } from "@/lib/server/summary";
 import { dailyVerdict, type Verdict } from "@/lib/server/verdict";
 
 type JsonRecord = Record<string, unknown>;
@@ -84,15 +84,18 @@ export type DayView = {
  */
 export async function getDayView(ownerId: string, date: string, ctx?: DayContext): Promise<DayView> {
   const { timezone, today } = ctx ?? (await getDayContext(ownerId));
-  const range = { from: date, to: date };
-  const [week, foods, workouts, cardio, measurements, notes] = await Promise.all([
-    computeDailySummaries(ownerId, addDays(date, -6), date),
-    listRecords(ownerId, "food_entries", range),
-    listWorkoutsWithSets(ownerId, range),
-    listRecords(ownerId, "cardio_sessions", range),
-    listRecords(ownerId, "body_measurements", range),
-    listRecords(ownerId, "daily_notes", range),
-  ]);
+  // One read of the 7 days ending on `date`. The day's own meals, workouts, cardio,
+  // measurements and note are the `date` rows of that same read (same order), so
+  // nothing is fetched twice.
+  const from = addDays(date, -6);
+  const inputs = await loadSummaryInputs(ownerId, from, date);
+  const week = summariesFromInputs(inputs, from, date);
+  const onDate = (rows: JsonRecord[]) => rows.filter((r) => r.date === date);
+  const foods = onDate(inputs.foods);
+  const workouts = onDate(inputs.workouts);
+  const cardio = onDate(inputs.cardio);
+  const measurements = onDate(inputs.measurements);
+  const notes = onDate(inputs.notes);
   const summary = week[week.length - 1];
   return {
     date,
