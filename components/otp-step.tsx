@@ -3,14 +3,10 @@
 import { Clock, MailCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AuthHeading, FormError, FormNotice, SubmitButton } from "@/components/auth-ui";
+import { formatClock as clock } from "@/lib/shared/clock";
 import { safeNextPath } from "@/lib/shared/redirect";
 
 const CELLS = 6;
-
-function clock(totalSeconds: number): string {
-  const s = Math.max(0, Math.ceil(totalSeconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
 
 type Timing = { retryAfter?: number; expiresIn?: number };
 
@@ -28,12 +24,17 @@ export function OtpStep({
   initial,
   next,
   intro,
+  onStartOver,
+  startOverLabel,
 }: {
   email: string;
   initial: Timing;
   next: string | null;
   /** A message from the server to show above the code (e.g. why we are asking). */
   intro: string | null;
+  /** Lets the person go back and fix a mistyped address. */
+  onStartOver: () => void;
+  startOverLabel: string;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -165,12 +166,15 @@ export function OtpStep({
             value={code}
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={CELLS}
-            disabled={pending}
+            pattern="[0-9]*"
+            // readOnly, not disabled: a disabled field loses focus, so after a wrong code
+            // the next digits would go nowhere until the person clicked it again.
+            readOnly={pending}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onChange={(e) => {
+              // No maxLength: a pasted "123 456" must reach this handler whole, so the
+              // space can be dropped before the length is cut.
               const digits = e.target.value.replace(/\D/g, "").slice(0, CELLS);
               setCode(digits);
               if (digits.length === CELLS && !pending) void submit(digits);
@@ -214,6 +218,16 @@ export function OtpStep({
           ) : (
             "Resend code"
           )}
+        </button>
+      </p>
+      <p className="text-center text-[13px]">
+        <button
+          type="button"
+          onClick={onStartOver}
+          disabled={pending}
+          className="font-medium text-ink-2 underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent disabled:opacity-60"
+        >
+          {startOverLabel}
         </button>
       </p>
     </form>

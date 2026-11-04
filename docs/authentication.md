@@ -51,6 +51,7 @@ Timers on the code screen:
 | Code lifetime | 10 minutes (counted down on screen) |
 | Resend | Not before 60 seconds after the last code (counted down on the button) |
 | Codes per address | 3 per 15 minutes. After the third, the button shows the time left until another is allowed |
+| Gap, seen from sign-up | Signing up (or in) again within a minute of a code is **not an error**: the code screen opens with "A code was sent a moment ago", the earlier code stays valid, and the password just typed is the one that counts. It still counts against the per-client limit |
 | Wrong guesses | 5 per code, then it is burned and a new one is needed |
 | Code submissions | 10 per address and 20 per client IP per 15 minutes; the wait is shown |
 
@@ -67,9 +68,15 @@ Details worth knowing:
   person's address therefore cannot keep their password once the real owner signs
   up.
 - Trying to sign in before confirming (with the right password) sends a fresh
-  code and opens the same code screen.
+  code and opens the same code screen, showing how long the code really has
+  left. A correct password never counts as a failed sign-in, and confirming the
+  address clears any earlier failed sign-ins for it.
+- **Wrong email?** The code screen has a link back (to the form with everything
+  still filled in, or to sign-in).
+- A pasted code may contain spaces, dashes or text (`123 456`): only the digits are used.
 - Accounts still unconfirmed after **24 hours** are deleted automatically (with
-  their profile and code), as part of the same cleanup that runs on auth requests.
+  their profile and code), as part of the same cleanup that runs on auth
+  requests, but never while a code for them is still valid.
 
 ## Password rules
 

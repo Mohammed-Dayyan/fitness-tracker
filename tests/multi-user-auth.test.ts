@@ -196,27 +196,115 @@ describe("sign-up and email confirmation by code", () => {
     expect((await signIn("taken@example.test", "some other password")).status).toBe(401);
   });
 
-  it("enforces the 60-second gap and the 3-per-15-minutes cap, with the time left", async () => {
-    expect((await signUp("spam@example.com")).status).toBe(200);
-    const soon = await signUp("spam@example.com");
-    expect(soon.status).toBe(429);
-    const wait = (await soon.json()).retryAfter;
-    expect(wait).toBeGreaterThan(50);
-    expect(wait).toBeLessThanOrEqual(CODE_COOLDOWN_MS / 1000);
-    expect(sentMail).toHaveLength(1);
+  it("a second sign-up within a minute opens the code screen instead of an error, and sends no second code", async () => {
+    const first = await signUp("twice@example.com", "first password!");
+    expect(first.status).toBe(200);
+    const second = await signUp("twice@example.com", "second password!");
+    expect(second.status).toBe(200);
+    const body = await second.json();
+    expect(body).toMatchObject({ ok: true, codeAlreadySent: true });
+    expect(body.message).toContain("A code was sent a moment ago");
+    expect(body.retryAfter).toBeGreaterThan(50); // what is left of the minute
+    expect(body.retryAfter).toBeLessThanOrEqual(CODE_COOLDOWN_MS / 1000);
+    expect(body.expiresIn).toBeGreaterThan(530); // the code is under a minute old
+    expect(body.expiresIn).toBeLessThanOrEqual(600);
+    expect(sentMail.filter((m) => m.kind === "otp")).toHaveLength(1); // the first code is kept
 
-    // Two more allowed (skipping the gap), then the 15-minute cap bites.
+    // The password typed the second time is the one that counts, and the first code still works.
+    expect((await confirm("twice@example.com", lastCode("twice@example.com"))).status).toBe(200);
+    expect((await signIn("twice@example.com", "first password!")).status).toBe(401);
+    expect((await signIn("twice@example.com", "second password!")).status).toBe(200);
+  });
+
+  it("a sign-in that just sent a code and a sign-up right after it work together (the reported case)", async () => {
+    await signUp("combo@example.com");
+    await resetCodeLimits();
+    const loginRes = await signIn("combo@example.com");
+    await flushBackground();
+    expect(loginRes.status).toBe(403); // unconfirmed: a code was sent
+    const mailsBefore = sentMail.filter((m) => m.kind === "otp").length;
+    const res = await signUp("combo@example.com");
+    expect(res.status).toBe(200);
+    expect((await res.json()).codeAlreadySent).toBe(true);
+    expect(sentMail.filter((m) => m.kind === "otp")).toHaveLength(mailsBefore);
+  });
+
+  it("a code that just went out is not repeated to a confirmed account either", async () => {
+    await createOwner("taken");
+    await signUp("taken@example.test");
+    await signUp("taken@example.test");
+    expect(sentMail.filter((m) => m.kind === "exists")).toHaveLength(1);
+  });
+
+  it("requests inside the minute still count against the per-client cap", async () => {
+    const fixed = { "x-forwarded-for": "203.0.113.200" };
+    const go = async () => {
+      const res = await register(request("/api/auth/register", { body: { email: "hammer@example.com", password: PASSWORD }, headers: fixed }));
+      await flushBackground();
+      return res.status;
+    };
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) statuses.push(await go());
+    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429]);
+    expect(sentMail.filter((m) => m.kind === "otp")).toHaveLength(1);
+  });
+
+  it("enforces the 3-per-15-minutes cap, with the time left", async () => {
+    expect((await signUp("cap@example.com")).status).toBe(200);
+    // Two more allowed (skipping the 60-second gap each time), then the 15-minute cap bites.
     for (let i = 0; i < 2; i++) {
       await prisma.loginAttempt.deleteMany({ where: { ipKey: { startsWith: "code-gap:" } } });
-      expect((await signUp("spam@example.com")).status).toBe(200);
+      expect((await signUp("cap@example.com")).status).toBe(200);
     }
     await prisma.loginAttempt.deleteMany({ where: { ipKey: { startsWith: "code-gap:" } } });
-    const capped = await signUp("spam@example.com");
+    const capped = await signUp("cap@example.com");
     expect(capped.status).toBe(429);
-    const longWait = (await capped.json()).retryAfter;
-    expect(longWait).toBeGreaterThan(60);
-    expect(longWait).toBeLessThanOrEqual(LOGIN_WINDOW_MS / 1000);
+    const body = await capped.json();
+    expect(body.retryAfter).toBeGreaterThan(60);
+    expect(body.retryAfter).toBeLessThanOrEqual(LOGIN_WINDOW_MS / 1000);
+    expect(body.error).toContain("too many codes");
     expect(sentMail.filter((m) => m.kind === "otp")).toHaveLength(3);
+  });
+
+  it("signing in with the right password before confirming never counts as a failed sign-in", async () => {
+    await signUp("early@example.com");
+    const statuses: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      await resetCodeLimits(); // only the sign-in limit is in play
+      statuses.push((await signIn("early@example.com")).status);
+      await flushBackground();
+    }
+    expect(statuses).toEqual(Array(8).fill(403)); // never 429
+    expect(await prisma.loginAttempt.count({ where: { ipKey: "email:early@example.com" } })).toBe(0);
+    // And the first real sign-in after confirming works.
+    expect((await confirm("early@example.com", lastCode("early@example.com"))).status).toBe(200);
+    expect((await signIn("early@example.com")).status).toBe(200);
+  });
+
+  it("confirming the address clears earlier wrong-password failures for it", async () => {
+    await signUp("clear@example.com");
+    for (let i = 0; i < 3; i++) await signIn("clear@example.com", "wrong password here");
+    expect(await prisma.loginAttempt.count({ where: { ipKey: "email:clear@example.com" } })).toBe(3);
+    await confirm("clear@example.com", lastCode("clear@example.com"));
+    expect(await prisma.loginAttempt.count({ where: { ipKey: "email:clear@example.com" } })).toBe(0);
+  });
+
+  it("the unconfirmed sign-in answer says how long the code really has left", async () => {
+    await signUp("clock@example.com");
+    await resetCodeLimits();
+    const fresh = await (await signIn("clock@example.com")).json();
+    await flushBackground();
+    expect(fresh).toMatchObject({ code: "email_not_verified", retryAfter: 60, expiresIn: 600 });
+
+    // Inside the minute: no new code, and the existing code has about two minutes left.
+    await prisma.emailOtp.updateMany({ data: { expiresAt: new Date(Date.now() + 120_000) } });
+    const limited = await (await signIn("clock@example.com")).json();
+    expect(limited.expiresIn).toBeGreaterThan(115);
+    expect(limited.expiresIn).toBeLessThanOrEqual(120);
+
+    await prisma.emailOtp.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect((await (await signIn("clock@example.com")).json()).expiresIn).toBe(0);
   });
 
   it("the wait ends exactly when the oldest counted attempt leaves the window", async () => {
@@ -265,17 +353,27 @@ describe("sign-up and email confirmation by code", () => {
     expect((await confirm("j@example.com", after)).status).toBe(200);
   });
 
-  it("removes accounts that stay unconfirmed for a day, and nothing else", async () => {
+  it("removes accounts that stay unconfirmed for a day (once their code has expired), and nothing else", async () => {
     await signUp("old@example.com");
     await signUp("new@example.com");
     await createOwner("kept");
     const day = UNCONFIRMED_ACCOUNT_TTL_MS;
     await prisma.owner.updateMany({ where: { email: { in: ["old@example.com", "kept@example.test"] } }, data: { createdAt: new Date(Date.now() - day - 1000) } });
+    await prisma.emailOtp.updateMany({ where: { owner: { email: "old@example.com" } }, data: { expiresAt: new Date(Date.now() - 1000) } });
     await beginAttempt([{ key: "test:purge", max: 5 }]); // any auth attempt triggers the cleanup
     const emails = (await prisma.owner.findMany({ select: { email: true }, orderBy: { email: "asc" } })).map((o) => o.email);
     expect(emails).toEqual(["kept@example.test", "new@example.com"]);
     expect(await prisma.profile.count()).toBe(2); // the removed account's profile and code went with it
     expect(await prisma.emailOtp.count()).toBe(1);
+  });
+
+  it("does not remove an old unconfirmed account while its code is still valid", async () => {
+    await signUp("midway@example.com");
+    await prisma.owner.updateMany({ data: { createdAt: new Date(Date.now() - UNCONFIRMED_ACCOUNT_TTL_MS - 60_000) } });
+    await beginAttempt([{ key: "test:purge", max: 5 }]);
+    expect(await prisma.owner.count({ where: { email: "midway@example.com" } })).toBe(1);
+    // The person can still finish.
+    expect((await confirm("midway@example.com", lastCode("midway@example.com"))).status).toBe(200);
   });
 });
 

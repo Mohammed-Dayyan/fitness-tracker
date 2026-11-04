@@ -22,6 +22,16 @@ export function hashOtp(ownerId: string, code: string): string {
   return createHmac("sha256", secret()).update(`otp:${ownerId}:${code}`).digest("hex");
 }
 
+/** Seconds a code for this owner stays valid (0 when there is none or it has expired). */
+export async function otpSecondsLeft(ownerId: string): Promise<number> {
+  const otp = await prisma.emailOtp.findUnique({ where: { ownerId }, select: { expiresAt: true } });
+  return otp ? Math.max(0, Math.ceil((otp.expiresAt.getTime() - Date.now()) / 1000)) : 0;
+}
+
+export async function hasLiveOtp(ownerId: string): Promise<boolean> {
+  return (await otpSecondsLeft(ownerId)) > 0;
+}
+
 export const isWellFormedCode = (code: unknown): code is string => typeof code === "string" && /^\d{6}$/.test(code);
 
 /** Creates a code for the owner, replacing any earlier one. Returns the plain code to email. */

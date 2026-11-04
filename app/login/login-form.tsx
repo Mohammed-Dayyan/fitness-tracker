@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AuthHeading, FormError, SubmitButton, TextField } from "@/components/auth-ui";
 import { OtpStep } from "@/components/otp-step";
 import { PasswordInput } from "@/components/password-field";
+import { formatClock } from "@/lib/shared/clock";
 import { safeNextPath } from "@/lib/shared/redirect";
 
 export function LoginForm() {
@@ -13,7 +14,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<{ email: string; message: string; retryAfter?: number } | null>(null);
+  const [confirming, setConfirming] = useState<{ email: string; message: string; retryAfter?: number; expiresIn?: number } | null>(null);
   const [pending, setPending] = useState(false);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -41,10 +42,10 @@ export function LoginForm() {
         window.location.assign(safeNextPath(params.get("next")));
         return;
       }
-      const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string; retryAfter?: number };
+      const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string; retryAfter?: number; expiresIn?: number };
       if (body.code === "email_not_verified") {
         // Right password, address not confirmed yet: the server has sent a code.
-        setConfirming({ email: email.trim().toLowerCase(), message: body.error ?? "Enter the code we emailed you.", retryAfter: body.retryAfter });
+        setConfirming({ email: email.trim().toLowerCase(), message: body.error ?? "Enter the code we emailed you.", retryAfter: body.retryAfter, expiresIn: body.expiresIn });
         return;
       }
       if (res.status === 429 && body.retryAfter) {
@@ -61,7 +62,16 @@ export function LoginForm() {
   }
 
   if (confirming) {
-    return <OtpStep email={confirming.email} initial={confirming} next={params.get("next")} intro={confirming.message} />;
+    return (
+      <OtpStep
+        email={confirming.email}
+        initial={confirming}
+        next={params.get("next")}
+        intro={confirming.message}
+        onStartOver={() => setConfirming(null)}
+        startOverLabel="Back to sign in"
+      />
+    );
   }
 
   return (
@@ -88,7 +98,7 @@ export function LoginForm() {
           {lockedFor > 0 && (
             <>
               {" "}
-              Try again in <span className="tabular font-medium">{Math.floor(lockedFor / 60)}:{String(lockedFor % 60).padStart(2, "0")}</span>.
+              Try again in <span className="tabular font-medium">{formatClock(lockedFor)}</span>.
             </>
           )}
         </FormError>

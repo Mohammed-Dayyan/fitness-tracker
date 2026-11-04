@@ -53,9 +53,10 @@ Change it in Vercel's environment variables; it applies on the next deployment.
 
 | Event | Level | Fields |
 |---|---|---|
-| `auth.register.accepted` | info | `email`. The reply has been sent |
+| `auth.register.accepted` | info | `email`, `codeJustSent` (a code went out within the last minute, so none is sent now). The reply has been sent |
+| `auth.register.code_reused` | info | `ownerId`, `email`: the earlier, still-valid code was kept instead of sending another |
 | `auth.register.outcome` | info | `outcome`: `created`, `password_replaced` (unconfirmed address signed up again), `already_confirmed`, `race_lost`; `ownerId` |
-| `auth.register.rate_limited` | warn | `email`, `retryAfter` (s), `limitedBy` (which limit: `code-gap` 60 s gap, `code-send` 3 per 15 min, `code-ip`) |
+| `auth.register.rate_limited` | warn | `email`, `retryAfter` (s), `limitedBy` (`code-send` 3 per 15 min, `code-ip` per client). A sign-up inside the 60 s gap is not refused; see `codeJustSent` above |
 | `auth.register.rejected` | debug / warn | `reason`: `invalid_email`, `password_rules`; `cross_origin` is warn |
 | `auth.resend.accepted` / `.outcome` / `.rate_limited` | info / warn | like sign-up; `outcome`: `sending`, `already_confirmed`, `unknown_email` |
 | `auth.otp.issued` | info | `ownerId`, `email`, `expiresInSec` |

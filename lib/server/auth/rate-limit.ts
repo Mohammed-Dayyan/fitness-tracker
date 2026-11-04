@@ -92,14 +92,9 @@ export function beginLoginAttempt(ipKey: string, email: string) {
   ]);
 }
 
-/** Removes the provisional rows of an attempt that turned out fine. */
-export async function clearAttempts(rowIds: bigint[]): Promise<void> {
-  await prisma.loginAttempt.deleteMany({ where: { id: { in: rowIds } } });
-}
-
 /**
- * A successful sign-in removes its own provisional rows and the account's
- * earlier failures. Failures from the client IP are kept, so signing in to your
+ * A correct password (or a correct confirmation code) removes the attempt's own
+ * provisional rows and the account's earlier failures. Failures from the client IP are kept, so signing in to your
  * own account does not reset the budget for guessing someone else's.
  */
 export async function markLoginSuccess(rowIds: bigint[], email: string): Promise<void> {

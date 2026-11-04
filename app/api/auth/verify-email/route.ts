@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { beginAttempt, clearAttempts, emailKey, MAX_CODE_CHECKS_PER_EMAIL, MAX_CODE_CHECKS_PER_IP } from "@/lib/server/auth/rate-limit";
+import { beginAttempt, emailKey, markLoginSuccess, MAX_CODE_CHECKS_PER_EMAIL, MAX_CODE_CHECKS_PER_IP } from "@/lib/server/auth/rate-limit";
 import { checkOtp, isWellFormedCode } from "@/lib/server/auth/otp";
 import { issueSession, setAuthCookies } from "@/lib/server/auth/session";
 import { clientIpKey, isSameOriginRequest, jsonError, readJsonBody, requireJsonContentType } from "@/lib/server/http";
@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
     return jsonError(400, WRONG);
   }
 
-  await clearAttempts(attempt.rowIds);
+  // Confirmed: this attempt, and any earlier failed sign-ins for the address, no longer count against it.
+  await markLoginSuccess(attempt.rowIds, email);
   const tokens = await issueSession(result.ownerId, req.headers.get("user-agent"));
   log.info("auth.otp.confirmed", { ownerId: result.ownerId, email });
   const res = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });

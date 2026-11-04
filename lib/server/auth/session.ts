@@ -186,7 +186,7 @@ export const CLEANUP_BATCH = 500;
 /** How long an expired confirmation code stays in the table before cleanup removes it. */
 export const EXPIRED_CODE_KEEP_MS = 60 * 60 * 1000;
 
-/** Accounts that never entered their confirmation code are removed after this long. */
+/** Accounts that never entered their confirmation code are removed after this long (and once no code is still valid). */
 export const UNCONFIRMED_ACCOUNT_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -209,7 +209,12 @@ export async function purgeExpiredSessions(now = new Date()): Promise<number> {
   });
   if (staleCodes.length) await prisma.emailOtp.deleteMany({ where: { id: { in: staleCodes.map((c) => c.id) } } });
   const abandoned = await prisma.owner.findMany({
-    where: { emailVerifiedAt: null, createdAt: { lt: new Date(now.getTime() - UNCONFIRMED_ACCOUNT_TTL_MS) } },
+    where: {
+      emailVerifiedAt: null,
+      createdAt: { lt: new Date(now.getTime() - UNCONFIRMED_ACCOUNT_TTL_MS) },
+      // Not while someone is mid-way through entering a still-valid code.
+      OR: [{ emailOtp: { is: null } }, { emailOtp: { expiresAt: { lte: now } } }],
+    },
     select: { id: true },
     take: CLEANUP_BATCH,
   });
