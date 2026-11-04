@@ -1,28 +1,30 @@
 import "server-only";
 import { prisma } from "@/lib/server/db";
 import { hashPassword } from "@/lib/server/auth/password";
-import { invalidateAllSessions } from "@/lib/server/auth/session";
+import { revokeAllRefreshTokens } from "@/lib/server/auth/session";
 
-/** The single configured owner of this installation. */
-export const PRIMARY_OWNER_SLUG = "primary";
+export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-export function getPrimaryOwner() {
-  return prisma.owner.findUnique({ where: { slug: PRIMARY_OWNER_SLUG } });
+export function findOwnerByEmail(email: string) {
+  return prisma.owner.findUnique({ where: { email: normalizeEmail(email) } });
 }
 
 /**
- * Sets (or changes) an owner's password. Creates the owner and default profile
- * on first run. Every existing session is revoked.
+ * Creates an owner (already verified) or changes an existing owner's password.
+ * Used by the set-password script and tests; sign-up goes through
+ * /api/auth/register and email verification instead. Every refresh token of
+ * the owner is revoked.
  */
-export async function setOwnerPassword(password: string, slug = PRIMARY_OWNER_SLUG) {
+export async function setOwnerPassword(email: string, password: string) {
+  const normalized = normalizeEmail(email);
   const passwordHash = await hashPassword(password);
   const now = new Date();
   const owner = await prisma.owner.upsert({
-    where: { slug },
-    create: { slug, passwordHash, passwordChangedAt: now, profile: { create: {} } },
-    update: { passwordHash, passwordChangedAt: now },
+    where: { email: normalized },
+    create: { email: normalized, passwordHash, passwordChangedAt: now, emailVerifiedAt: now, profile: { create: {} } },
+    update: { passwordHash, passwordChangedAt: now, emailVerifiedAt: now },
   });
   await prisma.profile.upsert({ where: { ownerId: owner.id }, create: { ownerId: owner.id }, update: {} });
-  const revoked = await invalidateAllSessions(owner.id);
+  const revoked = await revokeAllRefreshTokens(owner.id);
   return { ownerId: owner.id, revokedSessions: revoked };
 }

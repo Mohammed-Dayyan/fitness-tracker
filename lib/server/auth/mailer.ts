@@ -1,0 +1,59 @@
+import "server-only";
+import nodemailer, { type Transporter } from "nodemailer";
+
+/**
+ * SMTP delivery (Gmail by default: use an App Password, not the account
+ * password). Without SMTP_USER/SMTP_PASSWORD, development and tests print the
+ * message to the server console instead; production refuses to start sending.
+ */
+function configured() {
+  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+}
+
+let transport: Transporter | undefined;
+function getTransport() {
+  const port = Number(process.env.SMTP_PORT ?? 465);
+  transport ??= nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+    port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    // A stalled SMTP server must not pin a connection (or a serverless
+    // invocation) for minutes.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+  });
+  return transport;
+}
+
+export async function sendMail(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+  if (!configured()) {
+    if (process.env.NODE_ENV === "production") throw new Error("SMTP_USER and SMTP_PASSWORD must be set to send email.");
+    console.log(`[mail:dev] to=${message.to} subject=${message.subject}\n${message.text}`);
+    return;
+  }
+  await getTransport().sendMail({
+    from: process.env.MAIL_FROM ?? `Fitness Tracker <${process.env.SMTP_USER}>`,
+    ...message,
+  });
+}
+
+export function sendOtpEmail(to: string, code: string): Promise<void> {
+  return sendMail({
+    to,
+    subject: `${code} is your Fitness Tracker confirmation code`,
+    text: `Your confirmation code is ${code}\n\nIt works for 10 minutes. If you did not sign up, ignore this message.`,
+    html: `<p>Your confirmation code is</p><p style="font-size:28px;font-weight:600;letter-spacing:6px">${code}</p><p>It works for 10 minutes. If you did not sign up, ignore this message.</p>`,
+  });
+}
+
+/** Sent instead of a code when someone signs up with an address that already has an account. */
+export function sendAccountExistsEmail(to: string): Promise<void> {
+  return sendMail({
+    to,
+    subject: "You already have a Fitness Tracker account",
+    text: "Someone (hopefully you) tried to sign up with this address, but it already has an account. Just sign in instead. If you did not try to sign up, ignore this message.",
+    html: "<p>Someone (hopefully you) tried to sign up with this address, but it already has an account. Just sign in instead.</p><p>If you did not try to sign up, ignore this message.</p>",
+  });
+}

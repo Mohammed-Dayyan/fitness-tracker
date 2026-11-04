@@ -1,10 +1,10 @@
 /**
- * npm run set-password
+ * npm run set-password -- user@example.com
  *
- * Sets the owner's password on first run and changes it afterwards. The
- * password is read from a hidden terminal prompt (or a single line on stdin
- * when piped), stored only as an Argon2id hash, and every existing session is
- * revoked.
+ * Admin tool: creates an account (already email-verified) or changes an
+ * existing account's password. The password is read from a hidden terminal
+ * prompt (or a single line on stdin when piped), stored only as an Argon2id
+ * hash, and every refresh token of the account is revoked.
  */
 import "dotenv/config";
 import { validateNewPassword } from "@/lib/server/auth/password";
@@ -19,6 +19,8 @@ async function readPiped(): Promise<string> {
 }
 
 async function main() {
+  const email = process.argv[2];
+  if (!email || !email.includes("@")) throw new Error("Usage: npm run set-password -- <email>");
   let password: string;
   if (process.stdin.isTTY) {
     password = await readHidden("New password: ");
@@ -32,8 +34,8 @@ async function main() {
     if (problem) throw new Error(problem);
   }
 
-  const { revokedSessions } = await setOwnerPassword(password);
-  console.log(`Password saved (Argon2id). ${revokedSessions} existing session(s) revoked.`);
+  const { revokedSessions } = await setOwnerPassword(email, password);
+  console.log(`Password saved (Argon2id). ${revokedSessions} existing sign-in(s) revoked.`);
 }
 
 main()

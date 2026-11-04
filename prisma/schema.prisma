@@ -20,14 +20,18 @@ datasource db {
 
 model Owner {
   id                String    @id @default(uuid()) @db.Uuid
-  // The application resolves its single configured owner by slug "primary".
-  slug              String    @unique
-  passwordHash      String?
+  // Lowercased, trimmed. The sign-in identifier.
+  email             String    @unique
+  // Argon2id hash; the password itself is never stored.
+  passwordHash      String
   passwordChangedAt DateTime?
+  // Null until the owner proves they control the address.
+  emailVerifiedAt   DateTime?
   createdAt         DateTime  @default(now())
 
   profile          Profile?
-  sessions         Session[]
+  refreshTokens    RefreshToken[]
+  emailOtp         EmailOtp?
   targets          TargetSet[]
   foodEntries      FoodEntry[]
   workouts         WorkoutSession[]
@@ -40,26 +44,50 @@ model Owner {
   @@map("owners")
 }
 
-model Session {
-  id         String   @id @default(uuid()) @db.Uuid
-  ownerId    String   @db.Uuid
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @db.Uuid
+  // One family per sign-in. Rotation keeps the family; reuse of a rotated
+  // token revokes the whole family.
+  familyId  String    @db.Uuid
   // SHA-256 of the random token held in the cookie. The token itself is never stored.
-  tokenHash  String   @unique
-  createdAt  DateTime @default(now())
-  lastSeenAt DateTime @default(now())
-  expiresAt  DateTime
-  userAgent  String?
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  // Set when the token was exchanged for a new one. Reuse after a short grace
+  // window deletes the whole family.
+  rotatedAt DateTime?
+  userAgent String?
 
   owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
+  @@index([familyId])
   @@index([expiresAt])
-  @@map("sessions")
+  @@map("refresh_tokens")
+}
+
+model EmailOtp {
+  id        String   @id @default(uuid()) @db.Uuid
+  // One live code per owner: issuing a new code replaces the old one.
+  ownerId   String   @unique @db.Uuid
+  // HMAC-SHA256 of the 6-digit code (keyed with a server secret and bound to
+  // the owner). The code itself is never stored.
+  codeHash  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  // Wrong guesses so far; the code is burned at the limit.
+  attempts  Int      @default(0)
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("email_otps")
 }
 
 model LoginAttempt {
   id        BigInt   @id @default(autoincrement())
-  // "ip:<address>" for per-client limits; every attempt is also counted globally.
+  // Rate-limit bucket, e.g. "ip:<address>" or "email:<address>".
   ipKey     String
   success   Boolean
   createdAt DateTime @default(now())

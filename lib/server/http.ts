@@ -1,17 +1,35 @@
 import "server-only";
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { formatBytes } from "@/lib/shared/limits";
-import {
-  sessionCookieName,
-  sessionCookieOptions,
-  validateSessionToken,
-  type ValidSession,
-} from "@/lib/server/auth/session";
+import { accessCookieName, refreshCookieName } from "@/lib/server/auth/cookies";
+import { verifyAccessToken } from "@/lib/server/auth/jwt";
+import { clearAuthCookies, rotateRefreshToken, setAuthCookies, type IssuedTokens } from "@/lib/server/auth/session";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
-  return NextResponse.json({ error, ...extra }, { status, headers: { "Cache-Control": "no-store" } });
+  const headers: Record<string, string> = { "Cache-Control": "no-store" };
+  if (typeof extra?.retryAfter === "number") headers["Retry-After"] = String(extra.retryAfter);
+  return NextResponse.json({ error, ...extra }, { status, headers });
+}
+
+/** Background tasks started outside a request (unit tests, scripts), so they can be awaited. */
+export const detachedBackground = new Set<Promise<void>>();
+
+/**
+ * Runs work after the response has been sent, so a slow side effect (SMTP) or
+ * account-dependent work cannot change how long the reply takes. Failures are
+ * logged, never thrown. Outside a request (unit tests) it runs detached and is
+ * tracked in `detachedBackground`.
+ */
+export function inBackground(work: () => Promise<void>): void {
+  const guarded = () => work().catch((e: unknown) => console.error("Background task failed:", e instanceof Error ? e.message : e));
+  try {
+    after(guarded);
+  } catch {
+    const task = guarded().finally(() => detachedBackground.delete(task));
+    detachedBackground.add(task);
+  }
 }
 
 const trustProxy = () => process.env.TRUST_PROXY === "true";
@@ -93,28 +111,45 @@ export async function readJsonBody(
   }
 }
 
-export type AuthedContext = { ownerId: string; session: ValidSession };
+export type AuthedContext = { ownerId: string; session: { expiresAt: Date } };
 
 type Handler<C> = (req: NextRequest, auth: AuthedContext, ctx: C) => Promise<Response>;
 
 /**
- * Wraps a Route Handler so it only runs for a valid session. The owner is
- * always resolved from the server-side session; nothing in the request can
- * choose which owner's data is touched.
+ * Wraps a Route Handler so it only runs for a valid sign-in. The owner is
+ * always resolved from the signed access token; nothing in the request can
+ * choose which owner's data is touched. If the access token has expired but the
+ * refresh cookie is good, the pair is rotated here and the new cookies ride on
+ * the response, so a long-open tab keeps working.
  */
 export function withOwner<C = unknown>(handler: Handler<C>) {
   return async (req: NextRequest, ctx: C): Promise<Response> => {
     if (!SAFE_METHODS.has(req.method) && !isSameOriginRequest(req)) {
       return jsonError(403, "Cross-origin request rejected.");
     }
-    const token = req.cookies.get(sessionCookieName())?.value;
-    const session = await validateSessionToken(token);
-    if (!session) return jsonError(401, "Not authenticated.");
+    let access = await verifyAccessToken(req.cookies.get(accessCookieName())?.value);
+    let issued: IssuedTokens | null = null;
+    if (!access) {
+      const rotated = await rotateRefreshToken(req.cookies.get(refreshCookieName())?.value, req.headers.get("user-agent"));
+      if (!rotated) {
+        const res = jsonError(401, "Not authenticated.");
+        if (req.cookies.has(accessCookieName()) || req.cookies.has(refreshCookieName())) clearAuthCookies(res);
+        return res;
+      }
+      issued = rotated;
+      access = { ownerId: rotated.ownerId, expiresAt: rotated.accessExpiresAt };
+    }
 
-    const res = await handler(req, { ownerId: session.ownerId, session }, ctx);
+    let res = await handler(req, { ownerId: access.ownerId, session: { expiresAt: access.expiresAt } }, ctx);
     if (!res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");
-    if (session.renewed && token && res instanceof NextResponse) {
-      res.cookies.set(sessionCookieName(), token, sessionCookieOptions(session.expiresAt));
+    if (issued) {
+      // The refresh token was just rotated, so the browser MUST receive the new
+      // cookies or its old token would later look stolen. A handler may return a
+      // plain Response (no cookie helper): rewrap it, keeping body and headers.
+      if (!(res instanceof NextResponse)) {
+        res = new NextResponse(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+      }
+      setAuthCookies(res as NextResponse, issued);
     }
     return res;
   };

@@ -1,5 +1,6 @@
 import "server-only";
 import { hash, verify } from "@node-rs/argon2";
+import { MAX_PASSWORD_LENGTH, unmetPasswordRules } from "@/lib/shared/password-rules";
 
 // Algorithm.Argon2id; the package exports it as a const enum, which
 // isolatedModules cannot import.
@@ -13,17 +14,12 @@ const ARGON2_OPTIONS = {
   parallelism: 1,
 } as const;
 
-export const MIN_PASSWORD_LENGTH = 12;
-export const MAX_PASSWORD_LENGTH = 256;
+export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/shared/password-rules";
 
+/** A message for the first rule the password breaks, or null when it is acceptable. */
 export function validateNewPassword(password: string): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-  }
-  if (password.length > MAX_PASSWORD_LENGTH) {
-    return `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`;
-  }
-  return null;
+  const [unmet] = unmetPasswordRules(password);
+  return unmet ? `Password must be ${unmet.label}.` : null;
 }
 
 export function hashPassword(password: string): Promise<string> {

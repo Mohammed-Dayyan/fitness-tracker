@@ -1,10 +1,10 @@
 /**
  * npm run unlock-login
  *
- * Lockout recovery: clears recorded failed login attempts so the owner can
+ * Lockout recovery: clears recorded failed login, sign-up and email attempts so users can
  * sign in immediately instead of waiting out the 15-minute window. Requires
  * database access (i.e. the same trust level as set-password); it does not
- * change the password or touch sessions.
+ * change any password or touch sign-ins.
  */
 import "dotenv/config";
 import { prisma } from "@/lib/server/db";
