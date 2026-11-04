@@ -146,7 +146,7 @@ npm run db:restore -- backups/fitness-local-20261027T081500Z.dump --into fitness
 
 You must type `fitness` to confirm. The restore runs in a single transaction
 with `--exit-on-error`: if anything fails, the database is left exactly as it
-was. Existing sessions in the backup are restored too. Sessions created after
+was. Refresh tokens in the backup are restored too. Sign-ins created after
 the backup no longer exist, so you may need to sign in again.
 
 ### Restore a remote (Supabase) database

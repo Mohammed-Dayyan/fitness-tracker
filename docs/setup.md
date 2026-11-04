@@ -48,7 +48,9 @@ don't reuse a real password.
 | `DATABASE_URL` | yes | Connection string the app uses |
 | `TEST_DATABASE_URL` | for `npm test` | Separate test database. Its name **must end in `_test`** |
 | `DIRECT_DATABASE_URL` | no | Non-pooled URL for migrations (production with a pooler; see [deployment](deployment.md)) |
-| `SESSION_TTL_DAYS` | no, default `30` | Sliding session lifetime |
+| `JWT_ACCESS_SECRET` | yes | Signs access tokens. 32+ random characters (`openssl rand -base64 48`) |
+| `SESSION_TTL_DAYS` | no, default `30` | Sliding refresh-token lifetime |
+| `SMTP_USER`, `SMTP_PASSWORD` | for real email | Gmail address and App Password. Unset in development: the confirmation code is printed in the server console |
 | `APP_ORIGIN` | no | Exact public origin for the CSRF check (see [security](security.md)) |
 | `TRUST_PROXY` | no, default `false` | Leave `false` locally (see [security](security.md#rate-limiting-and-trusted-proxies)) |
 
@@ -84,17 +86,22 @@ creating new migrations while changing the schema.)
 
 **Check:** the output ends with `All migrations have been successfully applied.`
 
-## 6. Set your password
+## 6. Create your account
+
+Either open `/register` once the app is running (step 7) and enter the emailed
+6-digit code (in development without SMTP configured, the code is printed in the
+terminal running `npm run dev`), or create a pre-confirmed account directly:
 
 ```bash
-npm run set-password
+npm run set-password -- you@example.com
 ```
 
-You are asked for the password twice. Typing is hidden. It must be at least 12
-characters. Only an Argon2id hash is stored. Running the command again later
-changes the password and signs out every session (see [authentication](authentication.md)).
+You are asked for the password twice. Typing is hidden. It must be 8–128
+characters. Only an Argon2id hash is stored. Running the command again for the
+same address changes the password and signs that account out everywhere (see
+[authentication](authentication.md)).
 
-**Check:** it prints `Password saved (Argon2id). 0 existing session(s) revoked.`
+**Check:** it prints `Password saved (Argon2id). 0 existing sign-in(s) revoked.`
 
 ## 7. Run the app
 

@@ -1,7 +1,7 @@
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addDays, todayInTimeZone } from "@/lib/shared/dates";
-import { createOwner, importOk, PASSWORD } from "../helpers/factory";
+import { createOwner, importOk, EMAIL, PASSWORD } from "../helpers/factory";
 import { CHROME, chromeAvailable, startServer } from "./server";
 
 let browser: Browser;
@@ -11,6 +11,7 @@ const SHOTS = process.env.SHOTS_DIR;
 
 async function signIn(page: Page) {
   await page.goto(`${server.url}/login`);
+  await page.fill("#email", EMAIL);
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${server.url}/`);
