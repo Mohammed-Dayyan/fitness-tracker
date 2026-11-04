@@ -14,8 +14,6 @@ const ARGON2_OPTIONS = {
   parallelism: 1,
 } as const;
 
-export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/shared/password-rules";
-
 /** A message for the first rule the password breaks, or null when it is acceptable. */
 export function validateNewPassword(password: string): string | null {
   const [unmet] = unmetPasswordRules(password);
