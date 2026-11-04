@@ -3,7 +3,7 @@ import { z } from "zod";
 import { sendAccountExistsNotice, sendConfirmationCode } from "@/lib/server/auth/confirmation";
 import { hashPassword, validateNewPassword } from "@/lib/server/auth/password";
 import { beginAttempt, CODE_COOLDOWN_MS, codeSendBuckets } from "@/lib/server/auth/rate-limit";
-import { OTP_TTL_MS } from "@/lib/server/auth/otp";
+import { hasLiveOtp, OTP_TTL_MS } from "@/lib/server/auth/otp";
 import { prisma } from "@/lib/server/db";
 import { clientIpKey, inBackground, isSameOriginRequest, jsonError, readJsonBody, requireJsonContentType } from "@/lib/server/http";
 import { type Logger, requestLogger } from "@/lib/server/log";
@@ -17,11 +17,12 @@ const emailSchema = z.email().max(254);
  * a new address, an unconfirmed one and a confirmed one. The log records which
  * of those it was; the person never learns it.
  */
-async function registerInBackground(email: string, passwordHash: string, log: Logger): Promise<void> {
+async function registerInBackground(email: string, passwordHash: string, log: Logger, codeJustSent: boolean): Promise<void> {
   const existing = await findOwnerByEmail(email);
   if (existing?.emailVerifiedAt) {
     log.info("auth.register.outcome", { outcome: "already_confirmed", ownerId: existing.id, email });
-    await sendAccountExistsNotice(log, email); // never touches the existing account
+    // Never touches the existing account. Not repeated within the minute after a notice or code.
+    if (!codeJustSent) await sendAccountExistsNotice(log, email);
     return;
   }
   let ownerId: string;
@@ -43,6 +44,12 @@ async function registerInBackground(email: string, passwordHash: string, log: Lo
       }
       throw e;
     }
+  }
+  // A code went out within the last minute and is still valid: do not replace it (the
+  // person is about to type it); the password above has been updated either way.
+  if (codeJustSent && (await hasLiveOtp(ownerId))) {
+    log.info("auth.register.code_reused", { ownerId, email });
+    return;
   }
   await sendConfirmationCode(log, { id: ownerId, email });
 }
@@ -72,23 +79,43 @@ export async function POST(req: NextRequest) {
   }
 
   // Keyed on the address, not on whether it exists, so a refusal reveals nothing.
-  const gate = await beginAttempt(codeSendBuckets(clientIpKey(req), email));
+  const buckets = codeSendBuckets(clientIpKey(req), email);
+  const gate = await beginAttempt(buckets);
+  let codeJustSent = false;
   if (gate.limited) {
-    log.warn("auth.register.rate_limited", { email, retryAfter: gate.retryAfter, limitedBy: gate.limitedBy });
-    return jsonError(429, "Please wait before asking for another code.", { retryAfter: gate.retryAfter });
+    // Only the 60-second gap fired: a code for this address went out moments ago (for example
+    // from a sign-in attempt). That is not an error for the person: show the code screen for it.
+    // The request still counts against the per-client cap, so this cannot be used to hammer.
+    if (gate.limitedBy.length === 1 && gate.limitedBy[0] === "code-gap") {
+      const clientGate = await beginAttempt([buckets[0]]);
+      if (!clientGate.limited) {
+        codeJustSent = true;
+      } else {
+        log.warn("auth.register.rate_limited", { email, retryAfter: clientGate.retryAfter, limitedBy: clientGate.limitedBy });
+        return jsonError(429, "Too many sign-up attempts from this device. Try again later.", { retryAfter: clientGate.retryAfter });
+      }
+    } else {
+      log.warn("auth.register.rate_limited", { email, retryAfter: gate.retryAfter, limitedBy: gate.limitedBy });
+      return jsonError(429, "You have asked for too many codes for this address. Try again later.", { retryAfter: gate.retryAfter });
+    }
   }
 
   // Hash even if the address is taken, so response time does not reveal it.
   const passwordHash = await hashPassword(password);
-  log.info("auth.register.accepted", { email });
-  inBackground(() => registerInBackground(email, passwordHash, log), log);
+  log.info("auth.register.accepted", { email, codeJustSent });
+  inBackground(() => registerInBackground(email, passwordHash, log, codeJustSent), log);
 
+  // The earlier code is at most a minute old: gate.retryAfter is what is left of that minute.
+  const sinceSent = codeJustSent ? CODE_COOLDOWN_MS / 1000 - gate.retryAfter : 0;
   return NextResponse.json(
     {
       ok: true,
-      message: `We sent a 6-digit code to ${email}.`,
-      retryAfter: CODE_COOLDOWN_MS / 1000,
-      expiresIn: OTP_TTL_MS / 1000,
+      message: codeJustSent
+        ? "A code was sent a moment ago. Enter it below, or wait to request a new one."
+        : `We sent a 6-digit code to ${email}.`,
+      retryAfter: codeJustSent ? gate.retryAfter : CODE_COOLDOWN_MS / 1000,
+      expiresIn: OTP_TTL_MS / 1000 - sinceSent,
+      codeAlreadySent: codeJustSent,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

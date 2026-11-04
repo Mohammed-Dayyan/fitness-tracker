@@ -184,14 +184,29 @@ describe("sign-up and email delivery are logged, including the background send",
     expect(events("auth.register.outcome")[0]).toMatchObject({ outcome: "password_replaced" });
   });
 
-  it("logs a rate-limited request as a warning naming which limit fired, never the address", async () => {
-    await signUp("spam@example.com");
+  it("logs a refused request as a warning naming which limit fired, never the address", async () => {
+    for (let i = 0; i < 3; i++) {
+      await prisma.loginAttempt.deleteMany({ where: { ipKey: { startsWith: "code-gap:" } } });
+      await signUp("spam@example.com");
+    }
+    await prisma.loginAttempt.deleteMany({ where: { ipKey: { startsWith: "code-gap:" } } });
     logs.length = 0;
     const res = await signUp("spam@example.com");
     expect(res.status).toBe(429);
-    expect(events("auth.register.rate_limited")[0]).toMatchObject({ level: "warn", limitedBy: ["code-gap"], email: "s***@example.com" });
-    expect((events("auth.register.rate_limited")[0].retryAfter as number) > 0).toBe(true);
-    expect(JSON.stringify(logs)).not.toContain("code-gap:email");
+    expect(events("auth.register.rate_limited")[0]).toMatchObject({ level: "warn", limitedBy: ["code-send"], email: "s***@example.com" });
+    expect((events("auth.register.rate_limited")[0].retryAfter as number) > 60).toBe(true);
+    expect(JSON.stringify(logs)).not.toContain("code-send:email");
+  });
+
+  it("a sign-up inside the minute is logged as accepted with the earlier code kept, not as a refusal", async () => {
+    await signUp("again2@example.com");
+    logs.length = 0;
+    const res = await signUp("again2@example.com");
+    expect(res.status).toBe(200);
+    expect(events("auth.register.accepted")[0]).toMatchObject({ level: "info", codeJustSent: true });
+    expect(events("auth.register.code_reused")[0]).toMatchObject({ level: "info", email: "a***@example.com" });
+    expect(eventNames()).not.toContain("auth.register.rate_limited");
+    expect(eventNames()).not.toContain("auth.mail.sent");
   });
 
   it("resend logs what it did for unknown, confirmed and unconfirmed addresses", async () => {
@@ -361,6 +376,7 @@ describe("housekeeping and server errors are logged", () => {
   it("logs abandoned accounts being removed", async () => {
     await signUp("abandoned@example.com");
     await prisma.owner.updateMany({ data: { createdAt: ago(25 * 3_600_000) } });
+    await prisma.emailOtp.updateMany({ data: { expiresAt: ago(1000) } }); // a still-valid code keeps the account
     logs.length = 0;
     await beginAttempt([{ key: "test:purge", max: 5 }]);
     expect(events("auth.cleanup.unconfirmed_accounts")[0]).toMatchObject({ deleted: 1, olderThanHours: 24 });

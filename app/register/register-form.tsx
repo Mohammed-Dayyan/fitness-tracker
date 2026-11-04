@@ -5,9 +5,10 @@ import { useState } from "react";
 import { AuthHeading, FormError, SubmitButton, TextField } from "@/components/auth-ui";
 import { OtpStep } from "@/components/otp-step";
 import { PasswordHint, PasswordInput } from "@/components/password-field";
+import { formatClock } from "@/lib/shared/clock";
 import { unmetPasswordRules } from "@/lib/shared/password-rules";
 
-type Sent = { email: string; retryAfter?: number; expiresIn?: number };
+type Sent = { email: string; retryAfter?: number; expiresIn?: number; message?: string; codeAlreadySent?: boolean };
 
 /** Two real steps: details, then the emailed code. */
 function Steps({ current }: { current: 1 | 2 }) {
@@ -53,12 +54,14 @@ export function RegisterForm() {
       });
       const body = (await res.json().catch(() => ({}))) as Partial<Sent> & { error?: string };
       if (res.ok) {
-        setSent({ email: email.trim().toLowerCase(), retryAfter: body.retryAfter, expiresIn: body.expiresIn });
+        // Reset first: if the person goes back to fix the address, the form must be usable again.
+        setPending(false);
+        setSent({ email: email.trim().toLowerCase(), retryAfter: body.retryAfter, expiresIn: body.expiresIn, message: body.message, codeAlreadySent: body.codeAlreadySent });
         return;
       }
       setError(
         res.status === 429 && body.retryAfter
-          ? `${body.error ?? "Please wait."} Try again in ${Math.ceil(body.retryAfter)} seconds.`
+          ? `${body.error ?? "Please wait."} You can try again in ${formatClock(body.retryAfter)}.`
           : (body.error ?? "Could not create the account."),
       );
     } catch {
@@ -71,7 +74,15 @@ export function RegisterForm() {
     return (
       <>
         <Steps current={2} />
-        <OtpStep email={sent.email} initial={sent} next={null} intro={null} />
+        <OtpStep
+          email={sent.email}
+          initial={sent}
+          next={null}
+          // Normally the heading already says a code was sent; say more when one had just gone out.
+          intro={sent.codeAlreadySent ? (sent.message ?? null) : null}
+          onStartOver={() => setSent(null)}
+          startOverLabel="Wrong email? Go back"
+        />
       </>
     );
   }

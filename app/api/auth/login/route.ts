@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { sendConfirmationCode } from "@/lib/server/auth/confirmation";
 import { verifyPassword } from "@/lib/server/auth/password";
 import { beginAttempt, beginLoginAttempt, CODE_COOLDOWN_MS, codeSendBuckets, markLoginSuccess } from "@/lib/server/auth/rate-limit";
+import { OTP_TTL_MS, otpSecondsLeft } from "@/lib/server/auth/otp";
 import { issueSession, setAuthCookies } from "@/lib/server/auth/session";
 import { clientIpKey, inBackground, isSameOriginRequest, jsonError, readJsonBody, requireJsonContentType } from "@/lib/server/http";
 import { requestLogger } from "@/lib/server/log";
@@ -42,15 +43,20 @@ export async function POST(req: NextRequest) {
   // Only someone who knows the password learns the account is unconfirmed. They
   // get a fresh code (within the usual send limits) and the code screen.
   if (!owner.emailVerifiedAt) {
+    // The password was right, so this is not a failed attempt: it must not count
+    // towards the sign-in lockout (or linger and block the first real sign-in).
+    await markLoginSuccess(attempt.rowIds, email);
     const gate = await beginAttempt(codeSendBuckets(clientIpKey(req), email));
     log.info("auth.login.unconfirmed", { ownerId: owner.id, email, codeSent: !gate.limited, retryAfter: gate.retryAfter, limitedBy: gate.limitedBy });
     if (!gate.limited) inBackground(async () => void (await sendConfirmationCode(log, { id: owner.id, email })), log);
+    // A new code lasts the full time; if none was sent, the earlier one has however long it has left.
+    const expiresIn = gate.limited ? await otpSecondsLeft(owner.id) : OTP_TTL_MS / 1000;
     return jsonError(
       403,
       gate.limited
         ? "Confirm your email address first. Enter the code we already sent, or wait to request a new one."
         : "Confirm your email address first. We sent a 6-digit code to your inbox.",
-      { code: "email_not_verified", retryAfter: gate.limited ? gate.retryAfter : CODE_COOLDOWN_MS / 1000 },
+      { code: "email_not_verified", retryAfter: gate.limited ? gate.retryAfter : CODE_COOLDOWN_MS / 1000, expiresIn },
     );
   }
 
