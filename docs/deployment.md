@@ -155,13 +155,14 @@ skipped the first time only.
 If a migration goes wrong, restore the backup from 2b (see
 [backup and restore](backup-restore.md#restore-a-remote-supabase-database)).
 
-## 3. Set the production password
+## 3. Create the first production account
 
 ```bash
-DATABASE_URL="$PROD_DIRECT_URL" npm run set-password
+DATABASE_URL="$PROD_DIRECT_URL" npm run set-password -- you@example.com
 ```
 
-This creates the owner and stores the Argon2id hash in the Supabase database.
+This creates a pre-confirmed account and stores the Argon2id hash in the
+Supabase database. Other people can then sign up themselves at `/register`.
 
 ## 4. Lock down Supabase's Data API
 
@@ -206,6 +207,8 @@ the Data API roles from reading the tables.
 |---|---|
 | `DATABASE_URL` | Transaction pooler URL (port `6543`, with `?sslmode=require`) |
 | `TRUST_PROXY` | `true`: Vercel sets `X-Forwarded-For` itself (see [security](security.md#rate-limiting-and-trusted-proxies)) |
+| `JWT_ACCESS_SECRET` | 32+ random characters (`openssl rand -base64 48`). Required |
+| `SMTP_USER`, `SMTP_PASSWORD` | Gmail address and a Google App Password. Required: production refuses to send otherwise |
 | `SESSION_TTL_DAYS` | `30` (optional) |
 | `APP_ORIGIN` | `https://<your-production-domain>` (optional; recommended once you have one fixed domain) |
 
@@ -224,13 +227,13 @@ previews a separate Supabase database.
 
 - [ ] `https://<domain>/` redirects to `/login`.
 - [ ] Signing in works. In the browser's dev tools, the cookie is
-      `__Host-ft_session` with `Secure`, `HttpOnly` and `SameSite=Lax`.
+      `__Host-ft_access` and `__Host-ft_refresh`, each with `Secure`, `HttpOnly` and `SameSite=Lax`.
 - [ ] Response headers include `Strict-Transport-Security`,
       `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`.
 - [ ] **Data → Import** a small test payload with preview, then confirm, then
       delete it with `"delete"`.
 - [ ] **Data → Copy context** returns the prompt.
-- [ ] Five wrong passwords give HTTP 429. Then run
+- [ ] Five wrong passwords for one email give HTTP 429. Then run
       `DATABASE_URL="$PROD_DIRECT_URL" npm run unlock-login` and sign in normally.
 - [ ] Take a first production backup:
       `BACKUP_DATABASE_URL="$PROD_DIRECT_URL" npm run db:backup`.
@@ -268,7 +271,7 @@ Load both connection strings as described in [2a](#2a-keep-the-production-connec
 
 - [ ] Supabase project in the same region as the Vercel functions
 - [ ] Migrations applied with the session/direct URL
-- [ ] Production password set with `set-password`
+- [ ] First production account created with `set-password`, and a sign-up email arrives with a 6-digit code that confirms the account
 - [ ] Data API disabled, and the hardening SQL run (all tables `rls_enabled = t`)
 - [ ] Vercel env (Production scope): `DATABASE_URL` (port 6543), `TRUST_PROXY=true`, optional `APP_ORIGIN`
 - [ ] Preview deployments can't reach the production database

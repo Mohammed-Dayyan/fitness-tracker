@@ -2,11 +2,11 @@
 
 ## Threat model in brief
 
-A single person's health data on the public internet. The protections aim to
-make sure that:
+Many people's health data on the public internet, one account each. The
+protections aim to make sure that:
 
-- only someone with the password can read or change data,
-- a stolen database copy doesn't reveal the password or any usable session,
+- only the account holder can read or change their data,
+- a stolen database copy doesn't reveal any password or any usable token,
 - other websites can't make your browser change data (CSRF),
 - online password guessing is slow and capped,
 - imported JSON can't corrupt data or reach other owners' rows.
@@ -14,43 +14,73 @@ make sure that:
 ## Passwords
 
 - Argon2id (`@node-rs/argon2`) with OWASP parameters: 19 MiB memory, 2
-  iterations, 1 lane. Length 12–256 characters.
-- Set only from the command line (`npm run set-password`). There is no
-  password field anywhere in the web UI except sign-in.
-- Sign-in spends the same hashing effort whether or not a password exists, and
-  returns one generic error message.
+  iterations, 1 lane. Length 8–128 characters (no other composition rules).
+- Set at sign-up (`/register`) or by an administrator
+  (`npm run set-password -- <email>`).
+- Sign-in spends the same hashing effort whether or not the account exists, and
+  returns one generic error message. Sign-up gives the same reply for a taken
+  address as for a new one.
 
-## Sessions and cookies
+## Tokens and cookies
 
-- The session token is 32 random bytes (256 bits), base64url-encoded, in the
-  cookie only. The database stores its **SHA-256 hash**, so a database leak
-  yields no usable session.
-- No signing secret is involved. Tokens are random and checked against the
-  database, so there is no `SESSION_SECRET` to manage or rotate.
-- Cookie: `__Host-ft_session` in production. The `__Host-` prefix makes
-  browsers require `Secure`, `Path=/` and no `Domain`, so subdomains can't set
-  or override it. Flags: `HttpOnly` (JavaScript can't read it), `SameSite=Lax`,
-  `Secure` (production), `Expires` = session expiry.
-- 30-day sliding expiry, renewed hourly in the database. The browser cookie's
-  expiry is extended by `GET /api/auth/session`, which the app calls on every
-  full page load and when a tab becomes visible again after 30+ minutes. That
-  endpoint only answers for a **valid** session, so a forged, unknown or expired
-  cookie is never given a new expiry (and a 401 sends the tab to the sign-in page).
-- Every page (`requireOwner`) and every API route (`withOwner`) validates the
-  session against the database. `proxy.ts` only does an optimistic redirect when
-  there is no cookie at all; it never sets cookies, never touches the database,
-  and is not relied on for security. It does not run on `/api/*`.
-- Visiting `/login` while signed in redirects to the app; an invalid or expired
-  cookie shows the form.
-- Logout deletes the session row. A password change deletes all sessions, and
-  sessions older than the last password change are rejected anyway.
+- **Access token:** a JWT signed with HS256 using `JWT_ACCESS_SECRET` (32+
+  characters, required). It carries the account id, issuer, audience, a unique
+  id and a 15-minute expiry; `alg: none` and other algorithms are refused. It is
+  verified without a database lookup.
+- **Refresh token:** 32 random bytes (256 bits), base64url, in the cookie only.
+  The database stores its **SHA-256 hash**, so a database leak yields no usable
+  token. 30-day sliding expiry.
+- **Rotation and theft detection:** every refresh exchanges the token for a new
+  one in the same family. Reusing a spent token after a 10-second grace window
+  deletes the whole family. Parallel requests inside the window get only a new
+  access token, so two tabs can't sign each other out.
+- **Cookies:** `__Host-ft_access` and `__Host-ft_refresh` in production. The
+  `__Host-` prefix makes browsers require `Secure`, `Path=/` and no `Domain`, so
+  subdomains can't set or override them. Flags: `HttpOnly`, `SameSite=Lax`,
+  `Secure` (production), `Expires`.
+- Every page (`requireOwner`) and API route (`withOwner`) verifies the access
+  token. `proxy.ts` does an optimistic redirect (to `/login`, or through
+  `/api/auth/refresh` when only a refresh cookie is present); it never sets
+  cookies itself, never touches the database, and is not relied on for
+  security. It does not run on `/api/*`.
+- Visiting `/login` or `/register` while signed in redirects to the app.
+- Logout deletes the token family. A password change deletes all of an
+  account's refresh tokens; access tokens already issued last at most 15 more
+  minutes. A refresh token is refused for an unconfirmed account.
+- Only the access token's signature is checked per request, so revoking an
+  account takes effect within 15 minutes, not instantly. That is the usual
+  trade-off for avoiding a database lookup on every request.
+
+## Email confirmation
+
+- Sign-up creates the account unconfirmed; sign-in is refused until a 6-digit
+  code from the inbox is entered. Codes come from the OS CSPRNG, last 10 minutes
+  and are single use.
+- Only a keyed hash is stored (HMAC-SHA256 with the server secret, bound to the
+  account). A plain hash of one million possibilities would fall in milliseconds
+  to anyone holding a database copy; the key prevents that.
+- **Guessing is bounded three ways:** 5 wrong guesses burn the code (counted
+  atomically *before* comparing, so parallel requests cannot get more), 10
+  submissions per address and 20 per client per 15 minutes, and a new code needs
+  60 seconds and counts toward 3 per 15 minutes. Every failure looks the same.
+- **Pre-registration:** signing up again with an unconfirmed address replaces the
+  stored password, so someone who registered another person's address first
+  cannot keep their password. A narrow window remains if they register again
+  between the owner's sign-up and the owner entering the code.
+- **No enumeration:** a new, unconfirmed and confirmed address get the same reply
+  at the same speed, because everything that depends on the account runs after
+  the response. Refusals are keyed on the address, not on whether it exists.
+- Unconfirmed accounts are deleted after 24 hours, so open sign-up cannot pile up
+  abandoned rows.
+- Delivery is SMTP (Gmail App Password by default) with connection timeouts.
+  Credentials come from the environment only.
 
 ## CSRF
 
 Layered defences for every state-changing request (`POST` to `/api/auth/*`
 and `/api/import/*`):
 
-1. `SameSite=Lax` cookies: browsers don't send the session cookie on
+1. `SameSite=Lax` cookies: browsers don't send the auth cookies on
    cross-site `POST`s.
 2. **Origin check:** the `Origin` header must equal the app's origin, which is
    `APP_ORIGIN` if set, otherwise the request's own host. If `Origin` is
@@ -64,24 +94,27 @@ and `/api/import/*`):
 ## Rate limiting and trusted proxies
 
 Failed sign-ins are recorded in PostgreSQL *before* the password is checked,
-so parallel guesses can't race past the limit: **5 failures per client per 15
-minutes** and **50 failures overall per 15 minutes**. A success clears that
-client's failures. Recovery: `npm run unlock-login`.
+so parallel guesses can't race past the limit: **20 failures per client per 15
+minutes** and **5 failures per email address per 15 minutes**. Confirmation codes
+(60 s apart, 3 per address, 10 requests per client) and code submissions use the
+same mechanism, and every refusal reports the seconds left. A
+success clears that account's failures, not the client's. Recovery:
+`npm run unlock-login`.
 
 - **Storage is bounded.** An attempt over the limit is refused and its record
-  removed again, so hammering the endpoint stores at most 5 rows per client and
-  50 overall, however many requests arrive.
+  removed again, so hammering the endpoint stores at most 20 rows per client and
+  5 per address, however many requests arrive.
 - **Lockouts end on time.** Because refused attempts aren't recorded, a lockout
   ends 15 minutes after the failures that caused it; continuing to hammer does
   not extend it.
 - **Cleanup doesn't depend on a successful sign-in.** Every sign-in attempt
   (successful or not) first deletes up to 500 login-attempt rows older than the
-  window and up to 500 expired sessions. The work per request is bounded, and
+  window and up to 500 expired refresh tokens (and as many expired confirmation tokens). The work per request is bounded, and
   stale rows disappear as long as anyone (including an attacker) is making
   attempts. With no attempts, nothing new is being written, so nothing grows.
   To clean up on a schedule as well, e.g. with `pg_cron` on Supabase:
   `DELETE FROM login_attempts WHERE "createdAt" < now() - interval '1 hour';`
-  and `DELETE FROM sessions WHERE "expiresAt" < now();`.
+  and `DELETE FROM refresh_tokens WHERE "expiresAt" < now();`.
 
 Identifying "the client" safely depends on `TRUST_PROXY`:
 
@@ -105,7 +138,7 @@ applies.
 
 ## Authorization and data ownership
 
-- The owner is always taken from the server-side session. No request field
+- The owner is always taken from the signed access token. No request field
   (query, body, header) can select whose data is read or written. A test sends
   `owner_id` and confirms it is rejected or ignored.
 - All data access goes through owner-scoped functions (`lib/server/repo.ts`,
@@ -161,21 +194,23 @@ variable.
 
 ## Known limitations
 
-- **Lockout:** the global cap lets someone keep the owner locked out for 15
-  minutes at a time by failing to sign in 50 times (a lockout cannot be extended
-  by further attempts, but can be re-triggered after it ends). Recovery is
-  `npm run unlock-login`. For
-  stronger protection, put an access gate in front of the app (Vercel
-  Deployment Protection with a password or Vercel login, or Cloudflare Access).
+- **Lockout:** the per-address cap lets someone who knows your email keep that
+  account locked out for 15 minutes at a time by failing to sign in 5 times (a
+  lockout cannot be extended by further attempts, but can be re-triggered after
+  it ends). Other accounts are unaffected. Recovery is `npm run unlock-login`.
+- Sign-up is open, so anyone can create accounts (limited to 10 code requests per
+  client IP per 15 minutes). Without `TRUST_PROXY` all clients share that limit.
+- No self-service password reset; an administrator uses `npm run set-password`.
+- Revoking an account takes effect within 15 minutes (the access-token lifetime).
 - No second factor (TOTP or passkeys).
-- No absolute session lifetime: an active session can be renewed indefinitely,
-  until logout or a password change.
+- No absolute sign-in lifetime: an active sign-in can be renewed indefinitely,
+  until logout, a password change or token-reuse detection.
 - No Content-Security-Policy header yet. It would need nonces for Next.js
   scripts, and there is no user-generated HTML, so the XSS surface is small.
 - Without `TRUST_PROXY`, all clients share one rate-limit bucket.
 
 ## Reporting a problem
 
-If you find a security issue, change the password first (`npm run set-password`),
-then investigate. Treat the session table as the record of where you are
-signed in.
+If you find a security issue, change the affected password first (`npm run set-password -- <email>`),
+then investigate. Treat the `refresh_tokens` table as the record of where each
+account is signed in.

@@ -5,7 +5,7 @@ import { POST as preview } from "@/app/api/import/preview/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { readJsonBody } from "@/lib/server/http";
 import { COMMIT_WRAPPER_BYTES, MAX_IMPORT_BYTES, formatBytes } from "@/lib/shared/limits";
-import { cookieFrom, createOwner, ctx, ORIGIN, PASSWORD, request } from "./helpers/factory";
+import { cookieFrom, createOwner, ctx, ORIGIN, loginBody, request } from "./helpers/factory";
 
 const enc = new TextEncoder();
 
@@ -74,7 +74,7 @@ describe("audit #7: request size limits", () => {
 
   it("preview: 413 just over the limit, no 413 at the limit (reaches JSON parsing instead)", async () => {
     await createOwner();
-    const cookie = cookieFrom(await login(request("/api/auth/login", { body: { password: PASSWORD } })));
+    const cookie = cookieFrom(await login(request("/api/auth/login", { body: loginBody() })));
     const over = await preview(request("/api/import/preview", { body: " ".repeat(MAX_IMPORT_BYTES + 1), cookie }), ctx);
     expect(over.status).toBe(413);
     expect((await over.json()).error).toBe("Request body is too large. The limit is 10 MB.");
@@ -84,7 +84,7 @@ describe("audit #7: request size limits", () => {
 
   it("confirm allows exactly the wrapper allowance beyond the preview limit, and no more", async () => {
     await createOwner();
-    const cookie = cookieFrom(await login(request("/api/auth/login", { body: { password: PASSWORD } })));
+    const cookie = cookieFrom(await login(request("/api/auth/login", { body: loginBody() })));
     const limit = MAX_IMPORT_BYTES + COMMIT_WRAPPER_BYTES;
     expect((await commit(request("/api/import/commit", { body: " ".repeat(limit + 1), cookie }), ctx)).status).toBe(413);
     expect((await commit(request("/api/import/commit", { body: " ".repeat(limit), cookie }), ctx)).status).toBe(400);
@@ -94,7 +94,7 @@ describe("audit #7: request size limits", () => {
     const big = " ".repeat(MAX_IMPORT_BYTES + 1);
     expect((await preview(request("/api/import/preview", { body: big }), ctx)).status).toBe(401);
     await createOwner();
-    const cookie = cookieFrom(await login(request("/api/auth/login", { body: { password: PASSWORD } })));
+    const cookie = cookieFrom(await login(request("/api/auth/login", { body: loginBody() })));
     expect((await preview(request("/api/import/preview", { body: big, cookie, origin: "https://evil.example" }), ctx)).status).toBe(403);
   });
 

@@ -6,20 +6,20 @@ import { POST as preview } from "@/app/api/import/preview/route";
 import { POST as commit } from "@/app/api/import/commit/route";
 import { POST as settings } from "@/app/api/settings/route";
 import { prisma } from "@/lib/server/db";
-import { createSession } from "@/lib/server/auth/session";
-import { cookieFrom, createBareOwner, createOwner, ctx, PASSWORD, request } from "./helpers/factory";
+import { issueSession } from "@/lib/server/auth/session";
+import { cookieFrom, createBareOwner, createOwner, ctx, loginBody, request } from "./helpers/factory";
 
 const payload = { schema_version: "1.0", date: "2026-10-27", food_entries: [{ id: "f1", name: "Oats", calories: 150 }] };
 
 async function signedIn() {
   const ownerId = await createOwner();
-  const cookie = cookieFrom(await login(request("/api/auth/login", { body: { password: PASSWORD } })));
+  const cookie = cookieFrom(await login(request("/api/auth/login", { body: loginBody() })));
   return { ownerId, cookie };
 }
 
 describe("API authorization", () => {
   it("every data endpoint returns 401 without a valid session", async () => {
-    const bad = "ft_session=forged-token";
+    const bad = "ft_access=forged-token; ft_refresh=forged-token";
     for (const cookie of [undefined, bad]) {
       expect((await preview(request("/api/import/preview", { body: payload, cookie }), ctx)).status).toBe(401);
       expect((await commit(request("/api/import/commit", { body: { payload, preview_token: "x" }, cookie }), ctx)).status).toBe(401);
@@ -82,8 +82,8 @@ describe("API authorization", () => {
     const a = await createBareOwner("a");
     const b = await createBareOwner("b");
     await prisma.foodEntry.create({ data: { ownerId: a, id: "fa", date: new Date("2026-10-27"), name: "A food" } });
-    const { token } = await createSession(b);
-    const e = await exportRoute(request("/api/export?scope=all", { cookie: `ft_session=${token}` }), ctx);
+    const { accessToken } = await issueSession(b);
+    const e = await exportRoute(request("/api/export?scope=all", { cookie: `ft_access=${accessToken}` }), ctx);
     expect((await e.json()).food_entries).toEqual([]);
   });
 

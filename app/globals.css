@@ -225,3 +225,29 @@ body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Sign-in and sign-up fields draw their own focus (accent border and ring), so
+   the global outline would double it up. */
+.auth-input:focus-visible {
+  outline: none;
+}
+
+/* The sample day on the sign-in panel: the ring sweeps in, then the bars grow.
+   (prefers-reduced-motion above shortens both to nothing.) */
+@keyframes ring-sweep {
+  from {
+    stroke-dashoffset: var(--ring-circ);
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.ring-sweep {
+  animation: ring-sweep 1.3s cubic-bezier(0.22, 0.7, 0.2, 1) 0.2s both;
+}
+.bar-grow {
+  transform-origin: left;
+  animation: bar-grow 0.9s cubic-bezier(0.22, 0.7, 0.2, 1) both;
+}

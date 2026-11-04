@@ -19,6 +19,7 @@ All four must pass. The test suite covers:
 | `tests/import-bulk.test.ts` | A month in one import, mixed valid/invalid, export round trips |
 | `tests/ownership.test.ts` | Cross-owner isolation, composite foreign keys, CHECK constraints |
 | `tests/auth.test.ts` | Hashing, cookies, rate limits (including forged headers and parallel guesses), sessions, logout, password change |
+| `tests/multi-user-auth.test.ts` | Sign-up and email confirmation by code (attempt limits, timers, pre-registration, cleanup), JWT verification (tampered, expired, `alg: none`), refresh rotation, reuse detection, account isolation |
 | `tests/api-authz.test.ts` | Every endpoint requires a session; CSRF; content type; full HTTP flow |
 | `tests/summary.test.ts` | Totals with unknowns, exercise kept separate, targets history, context prompt |
 | `tests/dashboard-logic.test.ts` | Verdict, meal timeline, trends and adherence, PRs, views tracking moves/edits/deletes |
@@ -70,9 +71,11 @@ plus fields in `lib/server/import/spec.ts`.
 | `password authentication failed` | `.env` password differs from the one the volume was created with | Use the original password, or reset with `docker compose down -v` (deletes local data; back up first) |
 | `database "fitness_test" does not exist` | The volume predates the init script | `docker compose exec db psql -U fitness -d postgres -c "CREATE DATABASE fitness_test OWNER fitness"` |
 | `Refusing to run tests against …` | `TEST_DATABASE_URL` doesn't end in `_test` | Point it at the test database |
-| Sign-in says "Invalid password." on a fresh install | No password set yet | `npm run set-password` |
+| Sign-in says "Invalid email or password." on a fresh install | No account yet | Register at `/register`, or `npm run set-password -- you@example.com` |
+| No confirmation email arrives | SMTP not configured (development prints the code in the server console), or a wrong App Password | Check `SMTP_USER`/`SMTP_PASSWORD`; the server log shows the SMTP error. The person can tap Resend code after 60 s |
+| `JWT_ACCESS_SECRET must be set` | Missing or under 32 characters | Set it in `.env` (`openssl rand -base64 48`) |
 | HTTP 429 at sign-in | Too many failed attempts | Wait 15 minutes or run `npm run unlock-login` |
-| Signed out everywhere unexpectedly | Password was changed, or the session expired after 30 idle days | Sign in again |
+| Signed out everywhere unexpectedly | Password was changed, the refresh token expired after 30 idle days, or a spent refresh token was reused (treated as theft) | Sign in again |
 | Sign-in works locally with `npm start` but the cookie isn't kept | Production mode sets `Secure` cookies; plain-HTTP origins other than `localhost` drop them | Use `npm run dev` locally, or serve over HTTPS |
 | HTTP 403 "Cross-origin request rejected" behind a proxy or custom domain | The origin the app computes differs from the browser's | Set `APP_ORIGIN=https://your.domain` (and `TRUST_PROXY=true` only if appropriate) |
 | Import: "The import was rejected as a whole" | Unknown top-level key or wrong `schema_version` | Read the listed errors; the "did you mean" hint names the right key |
@@ -122,8 +125,8 @@ affects only the records involved, unlike a full restore.
 | `npm outdated`; update dependencies, then run all checks | Monthly |
 | Review the Vercel and Supabase dashboards for errors and usage | Monthly |
 
-Expired sessions and old login attempts are purged automatically: every sign-in
-attempt deletes up to 500 stale login-attempt rows and 500 expired sessions, and
+Expired refresh tokens and old login attempts are purged automatically: every sign-in
+attempt deletes up to 500 stale login-attempt rows and 500 expired refresh tokens, and
 attempts over the rate limit are not stored at all, so the tables stay small
 even under a flood of failed logins (see [security](security.md#rate-limiting-and-trusted-proxies)
 for an optional scheduled cleanup).

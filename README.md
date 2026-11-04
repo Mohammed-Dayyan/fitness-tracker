@@ -6,8 +6,9 @@ JSON here. The app validates and previews every import before saving anything,
 then derives every total, verdict and chart from the stored records.
 
 **Stack:** Next.js 16 (App Router, Cache Components), TypeScript, PostgreSQL,
-Prisma 7, Zod, Recharts, Tailwind CSS 4. Authentication is a built-in single
-password (Argon2id) with database-backed sessions. Supabase Auth is not used.
+Prisma 7, Zod, Recharts, Tailwind CSS 4. Authentication is built in: open sign-up with
+email confirmation by 6-digit code (SMTP), Argon2id passwords, short-lived JWT access tokens and
+rotating refresh tokens in HttpOnly cookies. Supabase Auth is not used.
 
 ## Quick start (local)
 
@@ -19,7 +20,9 @@ npm install                    # also generates the Prisma client
 cp .env.example .env           # then replace every "change-me-local-only"
 npm run db:up                  # starts PostgreSQL on 127.0.0.1:5434
 npm run db:deploy              # applies the database migrations
-npm run set-password           # prompts for your password (min 12 characters)
+# set JWT_ACCESS_SECRET in .env (openssl rand -base64 48), then either register at /register
+# or create a pre-confirmed account:
+npm run set-password -- you@example.com   # prompts for a password (min 8 characters)
 npm run dev                    # http://localhost:3000
 ```
 
@@ -31,7 +34,7 @@ The full walkthrough, with checks after each step, is in [docs/setup.md](docs/se
 |---|---|
 | [Local setup](docs/setup.md) | Prerequisites, Docker Compose, environment variables, migrations, first run |
 | [User guide](docs/user-guide.md) | Importing from ChatGPT, preview and confirm, stable IDs, corrections, deletes, exports, the context prompt, the JSON field reference |
-| [Authentication](docs/authentication.md) | Setting and changing the password, sessions, logout, lockout recovery |
+| [Authentication](docs/authentication.md) | Sign-up, email confirmation, access and refresh tokens, logout, lockout recovery |
 | [Backup and restore](docs/backup-restore.md) | Backing up and restoring local and Supabase databases, with a tested walkthrough |
 | [Deployment](docs/deployment.md) | Vercel with Supabase PostgreSQL: connection pooling, migrations, environment, hardening, checklist |
 | [Security](docs/security.md) | Threat model, sessions and cookies, CSRF, rate limiting and trusted proxies, secrets, known limitations |
@@ -49,7 +52,7 @@ The full walkthrough, with checks after each step, is in [docs/setup.md](docs/se
 | `npm run db:up` | Start the local PostgreSQL container and wait until it is healthy |
 | `npm run db:deploy` | Apply pending migrations (local or production) |
 | `npm run db:migrate` | Create a new migration while developing schema changes |
-| `npm run set-password` | Set or change the password (revokes all sessions) |
+| `npm run set-password -- <email>` | Create a confirmed account or change its password (revokes its refresh tokens) |
 | `npm run unlock-login` | Clear failed-login lockouts |
 | `npm run db:backup` | Back up the **local** database to `backups/` (set `BACKUP_DATABASE_URL` to back up a remote/production database instead; the output says which) |
 | `npm run db:counts` | Print row counts for a local or remote database (to compare a database with its backup) |
@@ -63,7 +66,7 @@ app/api/              Route handlers: auth, import preview/commit, export, setti
 app/login/            Sign-in page
 components/           UI components and Recharts charts
 lib/server/import/    Import protocol: schema spec, planner, transactional apply
-lib/server/auth/      Password hashing, sessions, rate limiting
+lib/server/auth/      Password hashing, JWT and refresh tokens, email, rate limiting
 lib/server/           Owner-scoped data access, summaries, verdict, trends, exports
 prisma/               Schema and migrations
 scripts/              set-password, unlock-login, backup/restore, Supabase hardening

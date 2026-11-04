@@ -1,7 +1,7 @@
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { addDays, msUntilNextDay, todayInTimeZone } from "@/lib/shared/dates";
-import { createOwner, importOk, PASSWORD } from "../helpers/factory";
+import { createOwner, importOk, EMAIL, PASSWORD } from "../helpers/factory";
 import { chromeAvailable, CHROME, fakeClockPreload, startServer } from "./server";
 
 const TZ = "Asia/Kolkata";
@@ -10,6 +10,7 @@ let server: Awaited<ReturnType<typeof startServer>>;
 
 async function signIn(page: Page, base: string) {
   await page.goto(`${base}/login`);
+  await page.fill("#email", EMAIL);
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${base}/`);
@@ -94,7 +95,7 @@ describe.skipIf(!chromeAvailable)("Today and date navigation (real browser)", ()
 describe.skipIf(!chromeAvailable)("Midnight rollover in Asia/Kolkata (real browser, shifted server clock)", () => {
   it("an open Today page moves to the new day at local midnight without any navigation", async () => {
     // Server clock starts 20 s before the next IST midnight (ahead of real time,
-    // so sessions stay newer than the password change).
+    // so tokens stay newer than the password change).
     const fakeStart = new Date(Date.now() + msUntilNextDay(TZ) - 20_000);
     const evening = todayInTimeZone(TZ, fakeStart);
     const morning = addDays(evening, 1);

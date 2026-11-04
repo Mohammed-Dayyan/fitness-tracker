@@ -3,10 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma } from "@/lib/server/db";
 import { addDays, msUntilNextDay, todayInTimeZone } from "@/lib/shared/dates";
 import { COPY_FAILED_MESSAGE } from "@/lib/client/clipboard";
-import { createOwner, importOk, PASSWORD } from "../helpers/factory";
+import { createOwner, importOk, EMAIL, PASSWORD } from "../helpers/factory";
 import { CHROME, chromeAvailable, fakeClockPreload, startServer } from "./server";
 
 const TZ = "Asia/Kolkata";
@@ -35,6 +34,7 @@ async function newContext(opts: { locale?: string } = {}): Promise<BrowserContex
 
 async function signIn(page: Page, base = server.url) {
   await page.goto(`${base}/login`);
+  await page.fill("#email", EMAIL);
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${base}/`);
@@ -76,7 +76,7 @@ describe.skipIf(!chromeAvailable)("audit fixes in a real browser", () => {
     await ctx.close();
   });
 
-  it("audit #14: a signed-in user visiting /login goes to the app; a forged or expired cookie does not", async () => {
+  it("audit #14: a signed-in user visiting /login goes to the app; a forged or expired token does not", async () => {
     await createOwner();
     const ctx = await newContext();
     const page = await ctx.newPage();
@@ -89,57 +89,53 @@ describe.skipIf(!chromeAvailable)("audit fixes in a real browser", () => {
     await page.goto(`${server.url}/login?next=//evil.example`);
     await page.waitForURL(`${server.url}/`); // unsafe destinations fall back to the app home
 
-    // Expire the session server-side: the same cookie no longer counts.
-    await prisma.session.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
+    // A forged access token is not a sign-in either.
+    const access = (await ctx.cookies()).find((c) => c.name.endsWith("ft_access"))!;
+    await ctx.clearCookies();
+    await ctx.addCookies([{ name: access.name, value: "forged-value", domain: "localhost", path: "/", httpOnly: true, secure: true, sameSite: "Lax" }]);
     await page.goto(`${server.url}/login`);
     await ready(page);
     await page.waitForTimeout(500);
     expect(new URL(page.url()).pathname).toBe("/login");
     await page.locator("#password").waitFor();
-
-    // A forged cookie value is not a session either.
-    const name = (await ctx.cookies()).find((c) => c.name.endsWith("ft_session"))!.name;
-    await ctx.clearCookies();
-    await ctx.addCookies([{ name, value: "forged-value", domain: "localhost", path: "/", httpOnly: true, secure: true, sameSite: "Lax" }]);
-    await page.goto(`${server.url}/login`);
-    await ready(page);
-    await page.waitForTimeout(500);
-    expect(new URL(page.url()).pathname).toBe("/login");
     await ctx.close();
   });
 
-  it("audit #24: a forged session cookie is never given a fresh expiry", async () => {
+  it("audit #24: a forged refresh cookie is never renewed and sends the visitor to sign in", async () => {
     await createOwner();
     const ctx = await newContext();
     const page = await ctx.newPage();
     await page.goto(`${server.url}/login`);
     const soon = Math.floor(Date.now() / 1000) + 3600;
-    await ctx.addCookies([{ name: "__Host-ft_session", value: "forged-value", domain: "localhost", path: "/", httpOnly: true, secure: true, sameSite: "Lax", expires: soon }]);
+    await ctx.addCookies([{ name: "__Host-ft_refresh", value: "forged-value", domain: "localhost", path: "/", httpOnly: true, secure: true, sameSite: "Lax", expires: soon }]);
     for (const path of ["/", "/history", "/trends"]) {
       await page.goto(`${server.url}${path}`);
       await ready(page);
+      expect(new URL(page.url()).pathname).toBe("/login");
     }
-    const cookie = (await ctx.cookies()).find((c) => c.name === "__Host-ft_session");
-    // Unchanged: still ~1 hour out, not renewed to 30 days.
+    const cookie = (await ctx.cookies()).find((c) => c.name === "__Host-ft_refresh");
+    // Cleared by the refresh endpoint, never extended to 30 days.
     expect(cookie ? cookie.expires : soon).toBeLessThan(soon + 120);
     await ctx.close();
   });
 
-  it("audit #24: a live session's cookie expiry is kept in step (extended on page loads)", async () => {
+  it("audit #24: an expired access token is refreshed transparently while the refresh token is good", async () => {
     await createOwner();
     const ctx = await newContext();
     const page = await ctx.newPage();
     await signIn(page);
-    const first = (await ctx.cookies()).find((c) => c.name.endsWith("ft_session"))!;
-    // Pretend the cookie is nearly expired (the server-side session is still fine).
-    await ctx.addCookies([
-      { name: first.name, value: first.value, domain: first.domain, path: first.path, httpOnly: first.httpOnly, secure: first.secure, sameSite: first.sameSite, expires: Math.floor(Date.now() / 1000) + 3600 },
-    ]);
+    const before = (await ctx.cookies()).find((c) => c.name.endsWith("ft_refresh"))!;
+    // Drop the access cookie, as if its 15 minutes had passed.
+    const access = (await ctx.cookies()).find((c) => c.name.endsWith("ft_access"))!;
+    await ctx.clearCookies({ name: access.name });
     await page.goto(`${server.url}/history`);
     await ready(page);
-    await page.waitForTimeout(800);
-    const renewed = (await ctx.cookies()).find((c) => c.name.endsWith("ft_session"))!;
-    expect(renewed.expires).toBeGreaterThan(Date.now() / 1000 + 29 * 86_400);
+    expect(new URL(page.url()).pathname).toBe("/history");
+    const cookies = await ctx.cookies();
+    expect(cookies.find((c) => c.name.endsWith("ft_access"))).toBeTruthy();
+    const after = cookies.find((c) => c.name.endsWith("ft_refresh"))!;
+    expect(after.value).not.toBe(before.value); // rotated
+    expect(after.expires).toBeGreaterThan(Date.now() / 1000 + 29 * 86_400);
     await ctx.close();
   });
 

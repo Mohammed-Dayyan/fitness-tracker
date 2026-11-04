@@ -2,7 +2,7 @@ import http from "node:http";
 import { once } from "node:events";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MAX_IMPORT_BYTES } from "@/lib/shared/limits";
-import { createOwner, PASSWORD } from "../helpers/factory";
+import { createOwner, EMAIL, PASSWORD } from "../helpers/factory";
 import { startServer } from "./server";
 
 // Real production server over real HTTP. Bodies are sent with chunked
@@ -68,9 +68,9 @@ describe("audit #7: request size limits on the production server", () => {
     const res = await fetch(`${server.url}/api/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: server.url },
-      body: JSON.stringify({ password: PASSWORD }),
+      body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
     });
-    cookie = res.headers.get("set-cookie")!.split(";")[0];
+    cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   });
 
   it("a chunked body just under the limit is read in full (no truncation) and previewed", async () => {
