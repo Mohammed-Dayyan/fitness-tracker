@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/db";
+import { log as rootLog, type Logger } from "@/lib/server/log";
 import { accessCookieName, cookieOptions, expiredCookieOptions, refreshCookieName } from "@/lib/server/auth/cookies";
 import { signAccessToken } from "@/lib/server/auth/jwt";
 
@@ -75,20 +76,33 @@ export async function issueSession(ownerId: string, userAgent?: string | null): 
 export async function rotateRefreshToken(
   token: string | undefined | null,
   userAgent?: string | null,
+  log: Logger = rootLog,
+  via: "api" | "page" = "api",
 ): Promise<(IssuedTokens & { ownerId: string }) | null> {
-  if (!token || token.length > 200) return null;
+  if (!token || token.length > 200) {
+    log.debug("auth.refresh.rejected", { reason: token ? "malformed" : "missing", via });
+    return null;
+  }
   const row = await prisma.refreshToken.findUnique({
     where: { tokenHash: hashToken(token) },
     include: { owner: { select: { emailVerifiedAt: true } } },
   });
-  if (!row) return null;
+  if (!row) {
+    // Forged, already deleted (logout, theft cleanup) or long expired: routine, so debug.
+    log.debug("auth.refresh.rejected", { reason: "unknown_token", via });
+    return null;
+  }
 
   const now = Date.now();
   if (row.expiresAt.getTime() <= now) {
     await prisma.refreshToken.deleteMany({ where: { id: row.id } });
+    log.info("auth.refresh.expired", { ownerId: row.ownerId, via });
     return null;
   }
-  if (!row.owner.emailVerifiedAt) return null;
+  if (!row.owner.emailVerifiedAt) {
+    log.warn("auth.refresh.rejected", { reason: "unconfirmed_owner", ownerId: row.ownerId, via });
+    return null;
+  }
 
   const accessOnly = async () => {
     const access = await signAccessToken(row.ownerId);
@@ -96,8 +110,22 @@ export async function rotateRefreshToken(
   };
 
   if (row.rotatedAt) {
-    if (now - row.rotatedAt.getTime() <= ROTATION_GRACE_MS) return accessOnly();
-    await prisma.refreshToken.deleteMany({ where: { familyId: row.familyId } });
+    const sinceRotation = now - row.rotatedAt.getTime();
+    if (sinceRotation <= ROTATION_GRACE_MS) {
+      // A parallel request from the same browser (two tabs, prefetches): fine, and common.
+      log.debug("auth.refresh.grace", { ownerId: row.ownerId, familyId: row.familyId, sinceRotationMs: sinceRotation, via });
+      return accessOnly();
+    }
+    const { count } = await prisma.refreshToken.deleteMany({ where: { familyId: row.familyId } });
+    // An already-used token came back after the grace window: either the browser missed the
+    // response that carried its new token (the user is signed out) or a copy was stolen.
+    log.warn("auth.refresh.reuse_detected", {
+      ownerId: row.ownerId,
+      familyId: row.familyId,
+      sinceRotationSec: Math.round(sinceRotation / 1000),
+      tokensDeleted: count,
+      via,
+    });
     return null;
   }
 
@@ -109,8 +137,12 @@ export async function rotateRefreshToken(
     });
     return count === 1 ? mintRefreshToken(tx, row.ownerId, row.familyId, userAgent ?? row.userAgent) : null;
   });
-  if (!next) return accessOnly();
+  if (!next) {
+    log.debug("auth.refresh.grace", { ownerId: row.ownerId, familyId: row.familyId, via, race: true });
+    return accessOnly();
+  }
 
+  log.info("auth.refresh.rotated", { ownerId: row.ownerId, familyId: row.familyId, via });
   const access = await signAccessToken(row.ownerId);
   return {
     ownerId: row.ownerId,
@@ -133,11 +165,13 @@ export function clearAuthCookies(res: NextResponse): void {
   res.cookies.set(refreshCookieName(), "", expiredCookieOptions());
 }
 
-/** Sign out: deletes the whole token family the refresh token belongs to. */
-export async function revokeRefreshToken(token: string | undefined | null): Promise<void> {
-  if (!token) return;
-  const row = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(token) }, select: { familyId: true } });
-  if (row) await prisma.refreshToken.deleteMany({ where: { familyId: row.familyId } });
+/** Sign out: deletes the whole token family the refresh token belongs to. Returns who and how many tokens. */
+export async function revokeRefreshToken(token: string | undefined | null): Promise<{ ownerId: string; tokensDeleted: number } | null> {
+  if (!token) return null;
+  const row = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(token) }, select: { familyId: true, ownerId: true } });
+  if (!row) return null;
+  const { count } = await prisma.refreshToken.deleteMany({ where: { familyId: row.familyId } });
+  return { ownerId: row.ownerId, tokensDeleted: count };
 }
 
 /** Sign out everywhere. Access tokens already issued expire within 15 minutes. */
@@ -148,6 +182,9 @@ export async function revokeAllRefreshTokens(ownerId: string): Promise<number> {
 
 /** Rows removed per cleanup call: keeps any single request cheap, however big the backlog. */
 export const CLEANUP_BATCH = 500;
+
+/** How long an expired confirmation code stays in the table before cleanup removes it. */
+export const EXPIRED_CODE_KEEP_MS = 60 * 60 * 1000;
 
 /** Accounts that never entered their confirmation code are removed after this long. */
 export const UNCONFIRMED_ACCOUNT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -163,13 +200,22 @@ export async function purgeExpiredSessions(now = new Date()): Promise<number> {
   const removed = expired.length
     ? (await prisma.refreshToken.deleteMany({ where: { id: { in: expired.map((s) => s.id) } } })).count
     : 0;
-  const staleCodes = await prisma.emailOtp.findMany({ where: { expiresAt: { lte: now } }, select: { id: true }, take: CLEANUP_BATCH });
+  // Expired codes are kept for an hour first, so a late "code expired" check is logged as
+  // exactly that instead of "no code".
+  const staleCodes = await prisma.emailOtp.findMany({
+    where: { expiresAt: { lte: new Date(now.getTime() - EXPIRED_CODE_KEEP_MS) } },
+    select: { id: true },
+    take: CLEANUP_BATCH,
+  });
   if (staleCodes.length) await prisma.emailOtp.deleteMany({ where: { id: { in: staleCodes.map((c) => c.id) } } });
   const abandoned = await prisma.owner.findMany({
     where: { emailVerifiedAt: null, createdAt: { lt: new Date(now.getTime() - UNCONFIRMED_ACCOUNT_TTL_MS) } },
     select: { id: true },
     take: CLEANUP_BATCH,
   });
-  if (abandoned.length) await prisma.owner.deleteMany({ where: { id: { in: abandoned.map((o) => o.id) } } });
+  if (abandoned.length) {
+    const { count } = await prisma.owner.deleteMany({ where: { id: { in: abandoned.map((o) => o.id) } } });
+    rootLog.info("auth.cleanup.unconfirmed_accounts", { deleted: count, olderThanHours: UNCONFIRMED_ACCOUNT_TTL_MS / 3_600_000 });
+  }
   return removed;
 }
