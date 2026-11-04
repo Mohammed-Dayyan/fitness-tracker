@@ -1,5 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { renderAccountExistsEmail, renderOtpEmail } from "@/lib/server/auth/email-templates";
+import { OTP_TTL_MS } from "@/lib/server/auth/otp";
 
 /**
  * SMTP delivery (Gmail by default: use an App Password, not the account
@@ -47,20 +49,10 @@ export async function sendMail(message: { to: string; subject: string; text: str
 export const smtpConfigured = configured;
 
 export function sendOtpEmail(to: string, code: string): Promise<SendResult> {
-  return sendMail({
-    to,
-    subject: `${code} is your Fitness Tracker confirmation code`,
-    text: `Your confirmation code is ${code}\n\nIt works for 10 minutes. If you did not sign up, ignore this message.`,
-    html: `<p>Your confirmation code is</p><p style="font-size:28px;font-weight:600;letter-spacing:6px">${code}</p><p>It works for 10 minutes. If you did not sign up, ignore this message.</p>`,
-  });
+  return sendMail({ to, ...renderOtpEmail({ code, ttlMinutes: OTP_TTL_MS / 60_000 }) });
 }
 
 /** Sent instead of a code when someone signs up with an address that already has an account. */
 export function sendAccountExistsEmail(to: string): Promise<SendResult> {
-  return sendMail({
-    to,
-    subject: "You already have a Fitness Tracker account",
-    text: "Someone (hopefully you) tried to sign up with this address, but it already has an account. Just sign in instead. If you did not try to sign up, ignore this message.",
-    html: "<p>Someone (hopefully you) tried to sign up with this address, but it already has an account. Just sign in instead.</p><p>If you did not try to sign up, ignore this message.</p>",
-  });
+  return sendMail({ to, ...renderAccountExistsEmail() });
 }
