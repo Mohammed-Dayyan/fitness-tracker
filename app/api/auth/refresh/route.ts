@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { refreshCookieName } from "@/lib/server/auth/cookies";
 import { clearAuthCookies, rotateRefreshToken, setAuthCookies } from "@/lib/server/auth/session";
+import { requestLogger } from "@/lib/server/log";
 import { safeNextPath } from "@/lib/shared/redirect";
 
 /**
@@ -13,7 +14,7 @@ import { safeNextPath } from "@/lib/shared/redirect";
  */
 export async function GET(req: NextRequest) {
   const next = safeNextPath(req.nextUrl.searchParams.get("next"));
-  const tokens = await rotateRefreshToken(req.cookies.get(refreshCookieName())?.value, req.headers.get("user-agent"));
+  const tokens = await rotateRefreshToken(req.cookies.get(refreshCookieName())?.value, req.headers.get("user-agent"), requestLogger(req), "page");
   if (!tokens) {
     const login = new URL("/login", req.url);
     if (next !== "/") login.searchParams.set("next", next);

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/server/db";
+import { log } from "@/lib/server/log";
 import { CLEANUP_BATCH, purgeExpiredSessions } from "@/lib/server/auth/session";
 
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -51,7 +52,7 @@ export const codeSendBuckets = (ipKey: string, email: string) => [
  */
 export async function beginAttempt(
   buckets: { key: string; max: number; windowMs?: number }[],
-): Promise<{ limited: boolean; retryAfter: number; rowIds: bigint[] }> {
+): Promise<{ limited: boolean; retryAfter: number; rowIds: bigint[]; limitedBy: string[] }> {
   const now = new Date();
   await purgeStaleAuthRows(now);
   const rows = await Promise.all(
@@ -63,7 +64,7 @@ export async function beginAttempt(
   );
   const rowIds = rows.map((r) => r.id);
   const over = buckets.filter((_, i) => counts[i] > buckets[i].max);
-  if (!over.length) return { limited: false, retryAfter: 0, rowIds };
+  if (!over.length) return { limited: false, retryAfter: 0, rowIds, limitedBy: [] };
 
   // The lockout of a bucket ends when its oldest counted attempt leaves the
   // window (our own, newest row is removed below and never counts). The wait
@@ -79,7 +80,9 @@ export async function beginAttempt(
     }),
   );
   await prisma.loginAttempt.deleteMany({ where: { id: { in: rowIds } } });
-  return { limited: true, retryAfter: Math.max(1, Math.ceil(Math.max(...waits) / 1000)), rowIds };
+  // Which limits refused it, by kind only (the keys contain the address).
+  const limitedBy = over.map((b) => b.key.split(":")[0]);
+  return { limited: true, retryAfter: Math.max(1, Math.ceil(Math.max(...waits) / 1000)), rowIds, limitedBy };
 }
 
 export function beginLoginAttempt(ipKey: string, email: string) {
@@ -111,5 +114,7 @@ export async function purgeStaleAuthRows(now = new Date()): Promise<{ attempts: 
     take: CLEANUP_BATCH,
   });
   const attempts = old.length ? (await prisma.loginAttempt.deleteMany({ where: { id: { in: old.map((a) => a.id) } } })).count : 0;
-  return { attempts, sessions: await purgeExpiredSessions(now) };
+  const sessions = await purgeExpiredSessions(now);
+  if (attempts || sessions) log.info("auth.cleanup", { attempts, refreshTokens: sessions });
+  return { attempts, sessions };
 }

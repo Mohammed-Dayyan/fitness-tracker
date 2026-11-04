@@ -115,6 +115,16 @@ describe("sign-up and email confirmation by code", () => {
     expect((await confirm("d@example.com", right)).status).toBe(400);
   });
 
+  it("expired codes are kept for an hour (so the log can say 'expired'), then cleaned up", async () => {
+    await signUp("stale@example.com");
+    await prisma.emailOtp.updateMany({ data: { expiresAt: new Date(Date.now() - 5 * 60_000) } });
+    await beginAttempt([{ key: "test:keep", max: 5 }]);
+    expect(await prisma.emailOtp.count()).toBe(1);
+    await prisma.emailOtp.updateMany({ data: { expiresAt: new Date(Date.now() - 61 * 60_000) } });
+    await beginAttempt([{ key: "test:keep", max: 5 }]);
+    expect(await prisma.emailOtp.count()).toBe(0);
+  });
+
   it("an expired code is refused", async () => {
     await signUp("e@example.com");
     const code = lastCode("e@example.com");

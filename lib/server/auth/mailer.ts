@@ -27,19 +27,26 @@ function getTransport() {
   return transport;
 }
 
-export async function sendMail(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+/** What the SMTP server told us; the message id is what to look for in the mailbox's Sent folder. */
+export type SendResult = { messageId?: string } | void;
+
+export async function sendMail(message: { to: string; subject: string; text: string; html: string }): Promise<SendResult> {
   if (!configured()) {
     if (process.env.NODE_ENV === "production") throw new Error("SMTP_USER and SMTP_PASSWORD must be set to send email.");
+    // Development only: this is how you read the code without SMTP. Never runs in production.
     console.log(`[mail:dev] to=${message.to} subject=${message.subject}\n${message.text}`);
     return;
   }
-  await getTransport().sendMail({
+  const info = await getTransport().sendMail({
     from: process.env.MAIL_FROM ?? `Fitness Tracker <${process.env.SMTP_USER}>`,
     ...message,
   });
+  return { messageId: info.messageId };
 }
 
-export function sendOtpEmail(to: string, code: string): Promise<void> {
+export const smtpConfigured = configured;
+
+export function sendOtpEmail(to: string, code: string): Promise<SendResult> {
   return sendMail({
     to,
     subject: `${code} is your Fitness Tracker confirmation code`,
@@ -49,7 +56,7 @@ export function sendOtpEmail(to: string, code: string): Promise<void> {
 }
 
 /** Sent instead of a code when someone signs up with an address that already has an account. */
-export function sendAccountExistsEmail(to: string): Promise<void> {
+export function sendAccountExistsEmail(to: string): Promise<SendResult> {
   return sendMail({
     to,
     subject: "You already have a Fitness Tracker account",

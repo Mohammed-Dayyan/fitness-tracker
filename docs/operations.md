@@ -19,6 +19,7 @@ All four must pass. The test suite covers:
 | `tests/import-bulk.test.ts` | A month in one import, mixed valid/invalid, export round trips |
 | `tests/ownership.test.ts` | Cross-owner isolation, composite foreign keys, CHECK constraints |
 | `tests/auth.test.ts` | Hashing, cookies, rate limits (including forged headers and parallel guesses), sessions, logout, password change |
+| `tests/logging.test.ts` | Logger format, levels and redaction; every auth event, the background email trail under one request id, no secrets in any log line |
 | `tests/multi-user-auth.test.ts` | Sign-up and email confirmation by code (attempt limits, timers, pre-registration, cleanup), JWT verification (tampered, expired, `alg: none`), refresh rotation, reuse detection, account isolation |
 | `tests/api-authz.test.ts` | Every endpoint requires a session; CSRF; content type; full HTTP flow |
 | `tests/summary.test.ts` | Totals with unknowns, exercise kept separate, targets history, context prompt |

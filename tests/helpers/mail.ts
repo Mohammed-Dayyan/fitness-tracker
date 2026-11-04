@@ -2,7 +2,7 @@
 export type SentMail = { kind: "otp"; to: string; code: string } | { kind: "exists"; to: string };
 export const sentMail: SentMail[] = [];
 /** Milliseconds the fake SMTP server takes to accept a message. */
-export const mailControl = { delayMs: 0 };
+export const mailControl: { delayMs: number; failWith: string | null } = { delayMs: 0, failWith: null };
 
 /** The latest 6-digit code sent to an address. */
 export function lastCode(to: string): string {

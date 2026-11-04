@@ -210,6 +210,7 @@ the Data API roles from reading the tables.
 | `JWT_ACCESS_SECRET` | 32+ random characters (`openssl rand -base64 48`). Required |
 | `SMTP_USER`, `SMTP_PASSWORD` | Gmail address and a Google App Password. Required: production refuses to send otherwise |
 | `SESSION_TTL_DAYS` | `30` (optional) |
+| `LOG_LEVEL` | `info` (optional). `debug` for more detail; see [logging](logging.md) |
 | `APP_ORIGIN` | `https://<your-production-domain>` (optional; recommended once you have one fixed domain) |
 
 Don't set `NODE_ENV`; Vercel sets it to `production`, which turns on secure

@@ -3,6 +3,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { formatBytes } from "@/lib/shared/limits";
 import { accessCookieName, refreshCookieName } from "@/lib/server/auth/cookies";
 import { verifyAccessToken } from "@/lib/server/auth/jwt";
+import { errorFields, log as rootLog, requestLogger, type Logger } from "@/lib/server/log";
 import { clearAuthCookies, rotateRefreshToken, setAuthCookies, type IssuedTokens } from "@/lib/server/auth/session";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -22,8 +23,8 @@ export const detachedBackground = new Set<Promise<void>>();
  * logged, never thrown. Outside a request (unit tests) it runs detached and is
  * tracked in `detachedBackground`.
  */
-export function inBackground(work: () => Promise<void>): void {
-  const guarded = () => work().catch((e: unknown) => console.error("Background task failed:", e instanceof Error ? e.message : e));
+export function inBackground(work: () => Promise<void>, log: Logger = rootLog): void {
+  const guarded = () => work().catch((e: unknown) => log.error("background.failed", errorFields(e, { stack: true })));
   try {
     after(guarded);
   } catch {
@@ -127,11 +128,13 @@ export function withOwner<C = unknown>(handler: Handler<C>) {
     if (!SAFE_METHODS.has(req.method) && !isSameOriginRequest(req)) {
       return jsonError(403, "Cross-origin request rejected.");
     }
+    const log = requestLogger(req);
     let access = await verifyAccessToken(req.cookies.get(accessCookieName())?.value);
     let issued: IssuedTokens | null = null;
     if (!access) {
-      const rotated = await rotateRefreshToken(req.cookies.get(refreshCookieName())?.value, req.headers.get("user-agent"));
+      const rotated = await rotateRefreshToken(req.cookies.get(refreshCookieName())?.value, req.headers.get("user-agent"), log, "api");
       if (!rotated) {
+        log.debug("auth.session.rejected", { hadAccessCookie: req.cookies.has(accessCookieName()), hadRefreshCookie: req.cookies.has(refreshCookieName()) });
         const res = jsonError(401, "Not authenticated.");
         if (req.cookies.has(accessCookieName()) || req.cookies.has(refreshCookieName())) clearAuthCookies(res);
         return res;

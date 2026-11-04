@@ -37,6 +37,7 @@ The full walkthrough, with checks after each step, is in [docs/setup.md](docs/se
 | [Authentication](docs/authentication.md) | Sign-up, email confirmation, access and refresh tokens, logout, lockout recovery |
 | [Backup and restore](docs/backup-restore.md) | Backing up and restoring local and Supabase databases, with a tested walkthrough |
 | [Deployment](docs/deployment.md) | Vercel with Supabase PostgreSQL: connection pooling, migrations, environment, hardening, checklist |
+| [Logging](docs/logging.md) | What is logged, levels, every event, and how to debug from Vercel's logs |
 | [Security](docs/security.md) | Threat model, sessions and cookies, CSRF, rate limiting and trusted proxies, secrets, known limitations |
 | [Operations](docs/operations.md) | Commands, tests, troubleshooting, upgrades and rollback |
 
